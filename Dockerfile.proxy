@@ -11,6 +11,9 @@ COPY fetch_t212_proxy.py .
 COPY fetch_t212_csv.py .
 COPY fetch_data.py .
 
+# Kopieer inputbestanden naar data map
+COPY data/universe.json /app/data/
+
 # Data map voor CSV output en JSON data
 RUN mkdir -p /app/data
 VOLUME /app/data
