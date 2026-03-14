@@ -252,8 +252,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = HTTPServer(("localhost", PORT), ProxyHandler)
-    print(f"Trading 212 proxy draait op http://localhost:{PORT}")
+    server = HTTPServer(("0.0.0.0", PORT), ProxyHandler)
+    print(f"Trading 212 proxy draait op http://0.0.0.0:{PORT}")
     print("Stop met Ctrl+C")
     try:
         server.serve_forever()
