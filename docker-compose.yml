@@ -11,6 +11,8 @@ services:
     restart: unless-stopped
     ports:
       - "6080:80"
+    volumes:
+      - portfolio-data:/usr/share/nginx/html/data
     depends_on:
       - proxy
 
