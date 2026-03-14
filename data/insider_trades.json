@@ -1,0 +1,1313 @@
+{
+  "_date": "2026-03-14",
+  "AAPL": {
+    "buy_count": 14,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-02-26",
+        "accession": "0001059235-26-000004"
+      },
+      {
+        "date": "2026-02-26",
+        "accession": "0001216519-26-000004"
+      },
+      {
+        "date": "2026-02-26",
+        "accession": "0001179864-26-000004"
+      }
+    ],
+    "score": 90.0
+  },
+  "MSFT": {
+    "buy_count": 32,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-13",
+        "accession": "0000789019-26-000064"
+      },
+      {
+        "date": "2026-03-13",
+        "accession": "0000789019-26-000063"
+      },
+      {
+        "date": "2026-03-13",
+        "accession": "0000789019-26-000062"
+      }
+    ],
+    "score": 90.0
+  },
+  "NVDA": {
+    "buy_count": 20,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-11",
+        "accession": "0001696841-26-000004"
+      },
+      {
+        "date": "2026-03-11",
+        "accession": "0001283854-26-000004"
+      },
+      {
+        "date": "2026-03-11",
+        "accession": "0001588670-26-000008"
+      }
+    ],
+    "score": 90.0
+  },
+  "AMZN": {
+    "buy_count": 12,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-04",
+        "accession": "0001936006-26-000008"
+      },
+      {
+        "date": "2026-02-24",
+        "accession": "0001374545-26-000002"
+      },
+      {
+        "date": "2026-02-24",
+        "accession": "0002024813-26-000002"
+      }
+    ],
+    "score": 90.0
+  },
+  "GOOGL": {
+    "buy_count": 42,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-06",
+        "accession": "0001193125-26-097008"
+      },
+      {
+        "date": "2026-03-04",
+        "accession": "0001193125-26-091916"
+      },
+      {
+        "date": "2026-03-04",
+        "accession": "0001193125-26-091912"
+      }
+    ],
+    "score": 90.0
+  },
+  "META": {
+    "buy_count": 38,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-11",
+        "accession": "0000950103-26-003623"
+      },
+      {
+        "date": "2026-03-04",
+        "accession": "0000950103-26-003256"
+      },
+      {
+        "date": "2026-03-03",
+        "accession": "0000950103-26-003174"
+      }
+    ],
+    "score": 90.0
+  },
+  "BRK-B": {
+    "buy_count": 3,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-05",
+        "accession": "0001193125-26-092556"
+      },
+      {
+        "date": "2026-02-17",
+        "accession": "0001193125-26-054947"
+      },
+      {
+        "date": "2026-02-02",
+        "accession": "0001193125-26-033900"
+      }
+    ],
+    "score": 90.0
+  },
+  "LLY": {
+    "buy_count": 45,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-02-19",
+        "accession": "0001955972-26-000006"
+      },
+      {
+        "date": "2026-02-18",
+        "accession": "0001262388-26-000004"
+      },
+      {
+        "date": "2026-02-18",
+        "accession": "0000059478-26-000017"
+      }
+    ],
+    "score": 90.0
+  },
+  "JPM": {
+    "buy_count": 65,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-02",
+        "accession": "0001193125-26-086198"
+      },
+      {
+        "date": "2026-02-26",
+        "accession": "0001193125-26-078732"
+      },
+      {
+        "date": "2026-02-26",
+        "accession": "0001193125-26-078725"
+      }
+    ],
+    "score": 90.0
+  },
+  "XOM": {
+    "buy_count": 20,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-03",
+        "accession": "0000034088-26-000049"
+      },
+      {
+        "date": "2026-02-09",
+        "accession": "0000034088-26-000042"
+      },
+      {
+        "date": "2026-02-03",
+        "accession": "0000034088-26-000039"
+      }
+    ],
+    "score": 90.0
+  },
+  "V": {
+    "buy_count": 16,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-12",
+        "accession": "0001403161-26-000065"
+      },
+      {
+        "date": "2026-02-18",
+        "accession": "0001403161-26-000058"
+      },
+      {
+        "date": "2026-02-18",
+        "accession": "0001403161-26-000057"
+      }
+    ],
+    "score": 90.0
+  },
+  "UNH": {
+    "buy_count": 41,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-02-25",
+        "accession": "0000731766-26-000058"
+      },
+      {
+        "date": "2026-02-25",
+        "accession": "0000731766-26-000056"
+      },
+      {
+        "date": "2026-02-25",
+        "accession": "0000731766-26-000054"
+      }
+    ],
+    "score": 90.0
+  },
+  "JNJ": {
+    "buy_count": 31,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-12",
+        "accession": "0000200406-26-000070"
+      },
+      {
+        "date": "2026-03-12",
+        "accession": "0000200406-26-000069"
+      },
+      {
+        "date": "2026-03-12",
+        "accession": "0000200406-26-000067"
+      }
+    ],
+    "score": 90.0
+  },
+  "AVGO": {
+    "buy_count": 16,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-04",
+        "accession": "0002103553-26-000002"
+      },
+      {
+        "date": "2026-03-04",
+        "accession": "0001670725-26-000002"
+      },
+      {
+        "date": "2026-03-04",
+        "accession": "0001608425-26-000002"
+      }
+    ],
+    "score": 90.0
+  },
+  "MA": {
+    "buy_count": 15,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-03",
+        "accession": "0001427531-26-000002"
+      },
+      {
+        "date": "2026-03-03",
+        "accession": "0001649899-26-000002"
+      },
+      {
+        "date": "2026-03-03",
+        "accession": "0002019175-26-000002"
+      }
+    ],
+    "score": 90.0
+  },
+  "TSLA": {
+    "buy_count": 5,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-09",
+        "accession": "0001104659-26-025379"
+      },
+      {
+        "date": "2026-02-27",
+        "accession": "0001104659-26-021746"
+      },
+      {
+        "date": "2026-01-12",
+        "accession": "0001972928-26-000001"
+      }
+    ],
+    "score": 90.0
+  },
+  "PG": {
+    "buy_count": 14,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-11",
+        "accession": "0000080424-26-000033"
+      },
+      {
+        "date": "2026-03-11",
+        "accession": "0000080424-26-000032"
+      },
+      {
+        "date": "2026-03-11",
+        "accession": "0000080424-26-000031"
+      }
+    ],
+    "score": 90.0
+  },
+  "COST": {
+    "buy_count": 13,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-13",
+        "accession": "0000909832-26-000035"
+      },
+      {
+        "date": "2026-03-13",
+        "accession": "0000909832-26-000033"
+      },
+      {
+        "date": "2026-03-11",
+        "accession": "0000909832-26-000028"
+      }
+    ],
+    "score": 90.0
+  },
+  "MRK": {
+    "buy_count": 26,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-02-12",
+        "accession": "0000310158-26-000052"
+      },
+      {
+        "date": "2026-02-10",
+        "accession": "0000310158-26-000050"
+      },
+      {
+        "date": "2026-02-09",
+        "accession": "0000310158-26-000048"
+      }
+    ],
+    "score": 90.0
+  },
+  "HD": {
+    "buy_count": 26,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-05",
+        "accession": "0000354950-26-000052"
+      },
+      {
+        "date": "2026-03-05",
+        "accession": "0000354950-26-000050"
+      },
+      {
+        "date": "2026-03-02",
+        "accession": "0000354950-26-000048"
+      }
+    ],
+    "score": 90.0
+  },
+  "ABBV": {
+    "buy_count": 23,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-06",
+        "accession": "0002057696-26-000008"
+      },
+      {
+        "date": "2026-03-06",
+        "accession": "0002078592-26-000004"
+      },
+      {
+        "date": "2026-03-03",
+        "accession": "0002004979-26-000004"
+      }
+    ],
+    "score": 90.0
+  },
+  "CVX": {
+    "buy_count": 52,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-10",
+        "accession": "0000093410-26-000101"
+      },
+      {
+        "date": "2026-03-04",
+        "accession": "0000093410-26-000097"
+      },
+      {
+        "date": "2026-03-04",
+        "accession": "0000093410-26-000095"
+      }
+    ],
+    "score": 90.0
+  },
+  "KO": {
+    "buy_count": 41,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-10",
+        "accession": "0000021344-26-000089"
+      },
+      {
+        "date": "2026-03-05",
+        "accession": "0000021344-26-000087"
+      },
+      {
+        "date": "2026-03-05",
+        "accession": "0000021344-26-000085"
+      }
+    ],
+    "score": 90.0
+  },
+  "PEP": {
+    "buy_count": 11,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-06",
+        "accession": "0001792421-26-000003"
+      },
+      {
+        "date": "2026-03-04",
+        "accession": "0001628280-26-014592"
+      },
+      {
+        "date": "2026-03-03",
+        "accession": "0002066169-26-000001"
+      }
+    ],
+    "score": 90.0
+  },
+  "ADBE": {
+    "buy_count": 17,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-01-27",
+        "accession": "0000796343-26-000035"
+      },
+      {
+        "date": "2026-01-27",
+        "accession": "0000796343-26-000034"
+      },
+      {
+        "date": "2026-01-27",
+        "accession": "0000796343-26-000033"
+      }
+    ],
+    "score": 90.0
+  },
+  "WMT": {
+    "buy_count": 74,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-11",
+        "accession": "0002110643-26-000006"
+      },
+      {
+        "date": "2026-03-11",
+        "accession": "0002058309-26-000006"
+      },
+      {
+        "date": "2026-03-11",
+        "accession": "0001598108-26-000008"
+      }
+    ],
+    "score": 90.0
+  },
+  "BAC": {
+    "buy_count": 58,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-13",
+        "accession": "0000070858-26-000200"
+      },
+      {
+        "date": "2026-03-06",
+        "accession": "0000070858-26-000196"
+      },
+      {
+        "date": "2026-03-06",
+        "accession": "0000070858-26-000195"
+      }
+    ],
+    "score": 90.0
+  },
+  "CRM": {
+    "buy_count": 33,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-02-23",
+        "accession": "0001108524-26-000054"
+      },
+      {
+        "date": "2026-02-23",
+        "accession": "0001108524-26-000052"
+      },
+      {
+        "date": "2026-02-23",
+        "accession": "0001108524-26-000050"
+      }
+    ],
+    "score": 90.0
+  },
+  "ACN": {
+    "buy_count": 95,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-09",
+        "accession": "0001455134-26-000008"
+      },
+      {
+        "date": "2026-03-09",
+        "accession": "0001792845-26-000008"
+      },
+      {
+        "date": "2026-03-09",
+        "accession": "0001487630-26-000009"
+      }
+    ],
+    "score": 90.0
+  },
+  "TMO": {
+    "buy_count": 26,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-12",
+        "accession": "0000097745-26-000064"
+      },
+      {
+        "date": "2026-03-09",
+        "accession": "0000097745-26-000058"
+      },
+      {
+        "date": "2026-03-05",
+        "accession": "0000097745-26-000055"
+      }
+    ],
+    "score": 90.0
+  },
+  "MCD": {
+    "buy_count": 30,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-11",
+        "accession": "0001685800-26-000005"
+      },
+      {
+        "date": "2026-02-26",
+        "accession": "0001723937-26-000002"
+      },
+      {
+        "date": "2026-02-25",
+        "accession": "0001685800-26-000003"
+      }
+    ],
+    "score": 90.0
+  },
+  "CSCO": {
+    "buy_count": 27,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-12",
+        "accession": "0000858877-26-000033"
+      },
+      {
+        "date": "2026-03-12",
+        "accession": "0000858877-26-000032"
+      },
+      {
+        "date": "2026-02-24",
+        "accession": "0000858877-26-000029"
+      }
+    ],
+    "score": 90.0
+  },
+  "LIN": {
+    "buy_count": 23,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-12",
+        "accession": "0001850358-26-000004"
+      },
+      {
+        "date": "2026-03-12",
+        "accession": "0001629436-26-000007"
+      },
+      {
+        "date": "2026-03-11",
+        "accession": "0001441755-26-000002"
+      }
+    ],
+    "score": 90.0
+  },
+  "ABT": {
+    "buy_count": 26,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-03",
+        "accession": "0002058129-26-000007"
+      },
+      {
+        "date": "2026-03-03",
+        "accession": "0001772286-26-000004"
+      },
+      {
+        "date": "2026-03-03",
+        "accession": "0001620564-26-000007"
+      }
+    ],
+    "score": 90.0
+  },
+  "ORCL": {
+    "buy_count": 7,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-02-11",
+        "accession": "0001341439-26-000010"
+      },
+      {
+        "date": "2026-01-26",
+        "accession": "0001341439-26-000006"
+      },
+      {
+        "date": "2026-01-16",
+        "accession": "0001341439-26-000004"
+      }
+    ],
+    "score": 90.0
+  },
+  "NKE": {
+    "buy_count": 12,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-02-13",
+        "accession": "0000320187-26-000013"
+      },
+      {
+        "date": "2026-02-13",
+        "accession": "0000320187-26-000012"
+      },
+      {
+        "date": "2026-02-12",
+        "accession": "0000320187-26-000009"
+      }
+    ],
+    "score": 90.0
+  },
+  "DHR": {
+    "buy_count": 47,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-03",
+        "accession": "0000313616-26-000098"
+      },
+      {
+        "date": "2026-03-03",
+        "accession": "0000313616-26-000097"
+      },
+      {
+        "date": "2026-03-03",
+        "accession": "0000313616-26-000096"
+      }
+    ],
+    "score": 90.0
+  },
+  "NEE": {
+    "buy_count": 35,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-10",
+        "accession": "0001769378-26-000005"
+      },
+      {
+        "date": "2026-03-10",
+        "accession": "0001684719-26-000005"
+      },
+      {
+        "date": "2026-03-10",
+        "accession": "0001959910-26-000006"
+      }
+    ],
+    "score": 90.0
+  },
+  "TXN": {
+    "buy_count": 32,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-02-18",
+        "accession": "0000097476-26-000073"
+      },
+      {
+        "date": "2026-02-12",
+        "accession": "0000097476-26-000071"
+      },
+      {
+        "date": "2026-02-12",
+        "accession": "0000097476-26-000070"
+      }
+    ],
+    "score": 90.0
+  },
+  "PM": {
+    "buy_count": 15,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-09",
+        "accession": "0001628280-26-016033"
+      },
+      {
+        "date": "2026-02-20",
+        "accession": "0001628280-26-010183"
+      },
+      {
+        "date": "2026-02-20",
+        "accession": "0001628280-26-010182"
+      }
+    ],
+    "score": 90.0
+  },
+  "AMD": {
+    "buy_count": 16,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-13",
+        "accession": "0000002488-26-000056"
+      },
+      {
+        "date": "2026-03-06",
+        "accession": "0000002488-26-000054"
+      },
+      {
+        "date": "2026-03-03",
+        "accession": "0000002488-26-000052"
+      }
+    ],
+    "score": 90.0
+  },
+  "QCOM": {
+    "buy_count": 23,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-13",
+        "accession": "0000804328-26-000028"
+      },
+      {
+        "date": "2026-03-13",
+        "accession": "0000804328-26-000027"
+      },
+      {
+        "date": "2026-03-09",
+        "accession": "0000804328-26-000026"
+      }
+    ],
+    "score": 90.0
+  },
+  "RTX": {
+    "buy_count": 22,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-02-23",
+        "accession": "0001225208-26-002413"
+      },
+      {
+        "date": "2026-02-23",
+        "accession": "0001225208-26-002412"
+      },
+      {
+        "date": "2026-02-23",
+        "accession": "0001225208-26-002411"
+      }
+    ],
+    "score": 90.0
+  },
+  "GE": {
+    "buy_count": 20,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-04",
+        "accession": "0002015929-26-000005"
+      },
+      {
+        "date": "2026-03-04",
+        "accession": "0002015720-26-000002"
+      },
+      {
+        "date": "2026-03-04",
+        "accession": "0002015707-26-000002"
+      }
+    ],
+    "score": 90.0
+  },
+  "NOW": {
+    "buy_count": 46,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-02",
+        "accession": "0001334944-26-000020"
+      },
+      {
+        "date": "2026-02-25",
+        "accession": "0001667422-26-000021"
+      },
+      {
+        "date": "2026-02-19",
+        "accession": "0001781064-26-000010"
+      }
+    ],
+    "score": 90.0
+  },
+  "LOW": {
+    "buy_count": 9,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-05",
+        "accession": "0000060667-26-000022"
+      },
+      {
+        "date": "2026-01-12",
+        "accession": "0000060667-26-000015"
+      },
+      {
+        "date": "2026-01-02",
+        "accession": "0000060667-26-000013"
+      }
+    ],
+    "score": 90.0
+  },
+  "UPS": {
+    "buy_count": 19,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-02-13",
+        "accession": "0001225208-26-001855"
+      },
+      {
+        "date": "2026-02-13",
+        "accession": "0001225208-26-001854"
+      },
+      {
+        "date": "2026-02-13",
+        "accession": "0001225208-26-001853"
+      }
+    ],
+    "score": 90.0
+  },
+  "AMGN": {
+    "buy_count": 14,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-06",
+        "accession": "0000318154-26-000023"
+      },
+      {
+        "date": "2026-03-05",
+        "accession": "0000318154-26-000022"
+      },
+      {
+        "date": "2026-03-05",
+        "accession": "0000318154-26-000021"
+      }
+    ],
+    "score": 90.0
+  },
+  "ISRG": {
+    "buy_count": 44,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-11",
+        "accession": "0001632901-26-000014"
+      },
+      {
+        "date": "2026-03-10",
+        "accession": "0002010300-26-000013"
+      },
+      {
+        "date": "2026-03-05",
+        "accession": "0002010300-26-000011"
+      }
+    ],
+    "score": 90.0
+  },
+  "MDT": {
+    "buy_count": 7,
+    "sell_count": 0,
+    "recent": [
+      {
+        "date": "2026-03-05",
+        "accession": "0001613103-26-000003"
+      },
+      {
+        "date": "2026-02-26",
+        "accession": "0001708062-26-000002"
+      },
+      {
+        "date": "2026-02-24",
+        "accession": "0002061393-26-000004"
+      }
+    ],
+    "score": 90.0
+  },
+  "ASML.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "HEIA.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "INGA.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "PHIA.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "ADYEN.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "SHELL.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "ABN.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "AH.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "AKZA.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "NN.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "WKL.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "RAND.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "IMCD.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "BESI.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "UNA.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "AD.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "KPN.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "MT.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "PRX.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "EXO.AS": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "SAP.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "SIE.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "ALV.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "DTE.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "BAYN.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "BMW.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "MBG.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "VOW3.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "BAS.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "HEN3.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "ADS.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "MRK.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "DB1.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "CBK.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "DBK.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "1COV.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "RWE.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "MUV2.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "HNR1.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "ZAL.DE": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "MC.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "OR.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "SAN.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "AIR.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "BNP.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "KER.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "RI.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "HO.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "CS.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "ACA.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "ORA.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "SGO.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "STMPA.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "VIE.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "CAP.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "BN.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "GLE.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "DG.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "TEP.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  },
+  "AI.PA": {
+    "buy_count": 0,
+    "sell_count": 0,
+    "recent": [],
+    "score": 50.0
+  }
+}

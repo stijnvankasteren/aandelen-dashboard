@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portfolio Analyser</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────── -->
+  <header>
+    <div class="header-left">
+      <h1>Portfolio Analyser</h1>
+      <p id="subtitle">Laden...</p>
+    </div>
+    <nav class="tab-bar">
+      <button class="tab-btn active" data-tab="rankings">Rankings</button>
+      <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="geschiedenis">Geschiedenis</button>
+      <button class="tab-btn" data-tab="account">Account</button>
+    </nav>
+    <div class="header-right">
+      <span id="last-updated"></span>
+      <a href="#" id="refresh-btn" onclick="location.reload(); return false;">Vernieuwen</a>
+    </div>
+  </header>
+
+  <!-- ── Geen data melding ────────────────────────────────── -->
+  <div id="no-data-banner" class="no-data hidden">
+    <div class="no-data-icon">!</div>
+    <div>
+      <strong>Geen data gevonden.</strong><br>
+      Voer eerst het volgende commando uit in de terminal:<br>
+      <code>python3 fetch_data.py</code>
+    </div>
+  </div>
+
+  <!-- ── Laden indicator ─────────────────────────────────── -->
+  <div id="loading-banner" class="loading-banner">
+    <div class="spinner"></div>
+    <span>Data laden...</span>
+  </div>
+
+  <!-- ── Hoofd inhoud ────────────────────────────────────── -->
+  <main id="main-content" class="hidden">
+
+    <!-- Top picks per index -->
+    <section class="top-picks" id="top-picks">
+      <!-- Ingevuld door JS -->
+    </section>
+
+    <!-- Filter balk -->
+    <section class="filter-bar">
+      <div class="index-filters" id="index-filters">
+        <button class="filter-btn active" data-index="all">Alle</button>
+        <button class="filter-btn" data-index="AEX">AEX</button>
+        <button class="filter-btn" data-index="DAX">DAX</button>
+        <button class="filter-btn" data-index="CAC40">CAC40</button>
+        <button class="filter-btn" data-index="SP500">S&amp;P 500</button>
+      </div>
+      <div class="score-filters" id="score-filters">
+        <button class="filter-btn score-btn active" data-min="0">Alle scores</button>
+        <button class="filter-btn score-btn" data-min="50">&gt;50</button>
+        <button class="filter-btn score-btn" data-min="60">&gt;60</button>
+        <button class="filter-btn score-btn" data-min="70">&gt;70</button>
+      </div>
+      <input type="search" id="search-box" placeholder="Zoek ticker of naam..." autocomplete="off">
+    </section>
+
+    <!-- Rankings tabel -->
+    <section class="table-section">
+      <div class="table-wrapper">
+        <table id="rankings-table">
+          <thead>
+            <tr>
+              <th class="sortable col-rank" data-col="rank">#</th>
+              <th class="sortable col-ticker" data-col="ticker">Ticker</th>
+              <th class="col-name">Naam</th>
+              <th class="sortable col-index" data-col="index">Index</th>
+              <th class="sortable col-price" data-col="price">Prijs</th>
+              <th class="sortable col-change" data-col="change_1d">1D%</th>
+              <th class="sortable col-mom1m" data-col="mom_1m">1M%</th>
+              <th class="sortable col-mom3m" data-col="mom_3m">3M%</th>
+              <th class="sortable col-score active-sort" data-col="composite_score">Score</th>
+              <th class="sortable col-rsi" data-col="rsi_value">RSI</th>
+              <th class="col-macd">MACD</th>
+              <th class="col-ma">MA</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+          </tbody>
+        </table>
+      </div>
+      <div id="table-footer">
+        <span id="showing-count"></span>
+        <button id="show-more-btn" class="show-more hidden">Toon meer</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── Detail Modal ────────────────────────────────────── -->
+  <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal(event)">
+    <div class="modal" id="modal">
+      <button class="modal-close" onclick="closeModal()">&#x2715;</button>
+      <div class="modal-header">
+        <div>
+          <h2 id="modal-ticker"></h2>
+          <p id="modal-name"></p>
+        </div>
+        <span id="modal-index-badge" class="index-badge"></span>
+      </div>
+
+      <div class="modal-body">
+        <!-- Prijs grafiek -->
+        <div class="chart-wrapper">
+          <div class="chart-period-bar">
+            <button class="period-btn" data-period="1W">1W</button>
+            <button class="period-btn" data-period="1M">1M</button>
+            <button class="period-btn active" data-period="3M">3M</button>
+            <button class="period-btn" data-period="1Y">1Y</button>
+          </div>
+          <div class="chart-container">
+            <canvas id="price-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Score breakdown -->
+        <div class="score-breakdown">
+          <h3>Score breakdown</h3>
+          <div id="score-bars"></div>
+          <div class="composite-total">
+            <span>Totaalscore</span>
+            <span id="modal-composite-score" class="score-badge"></span>
+          </div>
+        </div>
+
+        <!-- Fundamentele data -->
+        <div class="fundamentals-grid" id="modal-fundamentals"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Dashboard ──────────────────────────────────────── -->
+  <div id="dashboard-content" class="hidden">
+
+    <!-- Geen holdings melding -->
+    <div id="db-no-holdings" class="no-data hidden" style="margin:24px">
+      <div class="no-data-icon">!</div>
+      <div>
+        <strong>Geen holdings gevonden.</strong><br>
+        Pas <code>data/portfolio.json</code> aan met jouw posities en herstartde data met <code>python3 fetch_data.py</code>.
+      </div>
+    </div>
+
+    <!-- Stat bar bovenaan -->
+    <div class="db-header-bar" id="db-header-bar">
+      <div class="db-stat">
+        <div class="db-stat-label">Portefeuille Waarde</div>
+        <div class="db-stat-value" id="db-stat-value">—</div>
+      </div>
+      <div class="db-stat">
+        <div class="db-stat-label">Dagverandering</div>
+        <div class="db-stat-value" id="db-stat-daychange">—</div>
+      </div>
+      <div class="db-stat">
+        <div class="db-stat-label">Totaal Rendement</div>
+        <div class="db-stat-value" id="db-stat-return">—</div>
+      </div>
+      <div class="db-stat">
+        <div class="db-stat-label">Sentiment</div>
+        <div class="db-stat-value" id="db-stat-sentiment">—</div>
+      </div>
+    </div>
+
+    <!-- Hoofd grid -->
+    <div class="db-grid" id="db-main-grid">
+
+      <!-- Holdings tabel -->
+      <div class="db-panel db-panel-holdings">
+        <div class="db-panel-title">Holdings</div>
+        <table class="db-holdings-table">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Prijs</th>
+              <th>1D%</th>
+              <th>Alloc</th>
+              <th>Waarde</th>
+              <th>Trade</th>
+            </tr>
+          </thead>
+          <tbody id="db-holdings-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Performance grafiek -->
+      <div class="db-panel db-panel-perf">
+        <div class="db-panel-title">Portfolio vs S&amp;P 500 <span class="db-panel-sub">(basis 100)</span></div>
+        <div class="db-chart-container">
+          <canvas id="db-perf-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Risico analyse -->
+      <div class="db-panel db-panel-risk">
+        <div class="db-panel-title">Risico Analyse</div>
+        <div class="db-risk-metrics" id="db-risk-metrics"></div>
+      </div>
+
+      <!-- Sector donut -->
+      <div class="db-panel db-panel-sector">
+        <div class="db-panel-title">Asset Allocatie</div>
+        <div class="db-chart-container db-chart-sm">
+          <canvas id="db-sector-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Volatiliteit bars -->
+      <div class="db-panel db-panel-vol">
+        <div class="db-panel-title">Volatiliteit per Aandeel <span class="db-panel-sub">(annueel)</span></div>
+        <div class="db-chart-container">
+          <canvas id="db-vol-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Earnings kalender -->
+      <div class="db-panel db-panel-earnings">
+        <div class="db-panel-title">Earnings Kalender</div>
+        <div id="db-earnings-list"></div>
+      </div>
+
+      <!-- Correlatie matrix -->
+      <div class="db-panel db-panel-corr">
+        <div class="db-panel-title">Correlatie Matrix <span class="db-panel-sub">(6 maanden)</span></div>
+        <div class="db-corr-scroll">
+          <canvas id="db-corr-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Risico suggesties -->
+      <div class="db-panel db-panel-suggest">
+        <div class="db-panel-title">Risico Signalen</div>
+        <div id="db-suggestions-list"></div>
+      </div>
+
+      <!-- Top movers -->
+      <div class="db-panel db-panel-movers">
+        <div class="db-panel-title">Top Movers <span class="db-panel-sub">(1 dag, alle indices)</span></div>
+        <div id="db-movers-list"></div>
+      </div>
+
+    </div><!-- /.db-grid -->
+  </div><!-- /#dashboard-content -->
+
+  <!-- ── Geschiedenis pagina ───────────────────────────────── -->
+  <div id="geschiedenis-content" class="hidden">
+    <div class="gesch-wrapper">
+
+      <!-- CSV import -->
+      <div class="gesch-section">
+        <div class="gesch-section-header">
+          <h2 class="account-title">CSV Importeren</h2>
+        </div>
+        <p class="account-desc" style="margin-bottom:12px">
+          Haal automatisch je volledige transactiegeschiedenis op via de Trading 212 en/of DEGIRO API,
+          of upload een CSV die je zelf hebt gedownload via de app.
+        </p>
+        <div class="gesch-csv-row">
+          <button id="gesch-api-fetch-btn" class="btn-primary">Ophalen via API</button>
+          <span style="color:var(--muted);font-size:12px">of</span>
+          <label class="gesch-csv-label" for="gesch-csv-input">
+            <span id="gesch-csv-label-text">Kies CSV bestand...</span>
+            <input type="file" id="gesch-csv-input" accept=".csv" style="display:none">
+          </label>
+          <button id="gesch-csv-clear" class="btn-danger btn-sm" style="display:none">Wissen</button>
+        </div>
+        <div id="gesch-api-progress" class="gesch-loading hidden"></div>
+        <div id="gesch-csv-status"></div>
+      </div>
+
+      <!-- Samenvatting stats -->
+      <div class="gesch-stats" id="gesch-stats"></div>
+
+      <!-- Transacties -->
+      <div class="gesch-section">
+        <div class="gesch-section-header">
+          <h2 class="account-title">Transacties</h2>
+          <div class="gesch-filters">
+            <input type="search" id="gesch-search" class="account-input gesch-search" placeholder="Zoek ticker...">
+            <select id="gesch-filter-side" class="account-select gesch-select">
+              <option value="all">Alle</option>
+              <option value="BUY">Kopen</option>
+              <option value="SELL">Verkopen</option>
+            </select>
+            <select id="gesch-filter-broker" class="account-select gesch-select">
+              <option value="all">Alle brokers</option>
+              <option value="Trading 212">Trading 212</option>
+              <option value="DEGIRO">DEGIRO</option>
+            </select>
+          </div>
+        </div>
+        <div id="gesch-tx-loading" class="gesch-loading hidden">Laden...</div>
+        <div id="gesch-tx-list"></div>
+        <button id="gesch-tx-more" class="gesch-more-btn hidden">Meer laden</button>
+      </div>
+
+      <!-- Dividend -->
+      <div class="gesch-section">
+        <div class="gesch-section-header">
+          <h2 class="account-title">Dividend Betalingen</h2>
+        </div>
+        <div id="gesch-div-list"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Account pagina ─────────────────────────────────── -->
+  <div id="account-content" class="hidden">
+    <div class="account-wrapper">
+
+      <div class="account-section">
+        <h2 class="account-title">Trading 212 Koppeling</h2>
+        <p class="account-desc">
+          Voer je Trading 212 API-sleutel in om automatisch orders te plaatsen vanuit het dashboard.
+          Je sleutel wordt alleen lokaal opgeslagen (localStorage) en nooit verstuurd naar derden.<br>
+          <a class="account-link" href="https://helpcentre.trading212.com/hc/en-us/articles/14584770928157" target="_blank">Hoe maak ik een API-sleutel aan? &rarr;</a>
+        </p>
+
+        <div class="account-form">
+          <label class="account-label" for="t212-api-key">API-sleutel-id</label>
+          <input
+            id="t212-api-key"
+            type="password"
+            class="account-input"
+            placeholder="Plak hier je API-sleutel-id..."
+            autocomplete="off"
+          >
+
+          <label class="account-label" for="t212-api-secret">Geheime sleutel</label>
+          <input
+            id="t212-api-secret"
+            type="password"
+            class="account-input"
+            placeholder="Plak hier je geheime sleutel..."
+            autocomplete="off"
+          >
+
+          <label class="account-label" for="t212-env">Omgeving</label>
+          <select id="t212-env" class="account-select">
+            <option value="demo">Demo (papier trading)</option>
+            <option value="live">Live (echte orders!)</option>
+          </select>
+
+          <div class="account-actions">
+            <button id="t212-save-btn" class="btn-primary">Opslaan</button>
+            <button id="t212-test-btn" class="btn-secondary">Verbinding testen</button>
+            <button id="t212-clear-btn" class="btn-danger">Verwijderen</button>
+          </div>
+
+          <div id="t212-status" class="account-status hidden"></div>
+        </div>
+      </div>
+
+      <!-- ── DEGIRO Koppeling ──────────────────────────────── -->
+      <div class="account-section">
+        <h2 class="account-title">DEGIRO Koppeling</h2>
+        <p class="account-desc">
+          Voer je DEGIRO inloggegevens in om transactiegeschiedenis automatisch op te halen.
+          Je gegevens worden alleen lokaal opgeslagen en nooit verstuurd naar derden.
+        </p>
+
+        <div class="account-form">
+          <label class="account-label" for="degiro-username">Gebruikersnaam</label>
+          <input
+            id="degiro-username"
+            type="text"
+            class="account-input"
+            placeholder="Jouw DEGIRO gebruikersnaam..."
+            autocomplete="off"
+          >
+
+          <label class="account-label" for="degiro-password">Wachtwoord</label>
+          <input
+            id="degiro-password"
+            type="password"
+            class="account-input"
+            placeholder="Jouw DEGIRO wachtwoord..."
+            autocomplete="off"
+          >
+
+          <div class="account-actions">
+            <button id="degiro-save-btn" class="btn-primary">Opslaan</button>
+            <button id="degiro-test-btn" class="btn-secondary">Verbinding testen</button>
+            <button id="degiro-clear-btn" class="btn-danger">Verwijderen</button>
+          </div>
+
+          <div id="degiro-status" class="account-status hidden"></div>
+        </div>
+      </div>
+
+      <div class="account-section" id="t212-account-info" style="display:none">
+        <h2 class="account-title">Account Overzicht</h2>
+        <div id="t212-cash-info" class="account-info-grid"></div>
+
+        <div class="account-orders-header">
+          <h3 class="account-subtitle">Posities</h3>
+          <button id="t212-refresh-positions" class="btn-secondary btn-sm">Vernieuwen</button>
+        </div>
+        <div id="t212-positions-list"></div>
+
+        <div class="account-orders-header" style="margin-top:16px">
+          <h3 class="account-subtitle">Open Orders</h3>
+          <button id="t212-refresh-orders" class="btn-secondary btn-sm">Vernieuwen</button>
+        </div>
+        <div id="t212-orders-list" class="account-orders-list"></div>
+      </div>
+
+      <div class="account-section">
+        <h2 class="account-title">Hoe werkt het?</h2>
+        <ol class="account-howto">
+          <li>Genereer een API-sleutel in je Trading 212 account (Instellingen → API).</li>
+          <li>Kies de juiste omgeving (<strong>Demo</strong> voor oefenen, <strong>Live</strong> voor echte orders).</li>
+          <li>Start de lokale proxy: <code>python3 fetch_t212_proxy.py</code></li>
+          <li>Ga naar het <strong>Dashboard</strong> en klik op <strong>Trade</strong> naast een holding.</li>
+        </ol>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Trade Modal ─────────────────────────────────────── -->
+  <div id="trade-modal-overlay" class="modal-overlay hidden" onclick="closeTradeModal(event)">
+    <div class="modal trade-modal" id="trade-modal">
+      <button class="modal-close" onclick="closeTradeModal()">&#x2715;</button>
+      <div class="modal-header">
+        <div>
+          <h2 id="trade-modal-ticker"></h2>
+          <p id="trade-modal-name" style="color:var(--muted);font-size:13px"></p>
+        </div>
+        <span id="trade-modal-price" style="font-size:20px;font-weight:700"></span>
+      </div>
+
+      <div class="trade-body">
+        <div class="trade-side-btns">
+          <button class="trade-side-btn active" id="trade-buy-btn" onclick="setTradeSide('BUY')">Kopen</button>
+          <button class="trade-side-btn" id="trade-sell-btn" onclick="setTradeSide('SELL')">Verkopen</button>
+        </div>
+
+        <div class="trade-form">
+          <label class="account-label" for="trade-order-type">Order type</label>
+          <select id="trade-order-type" class="account-select" onchange="onOrderTypeChange()">
+            <option value="market">Marktorder</option>
+            <option value="limit">Limitorder</option>
+          </select>
+
+          <label class="account-label" for="trade-qty">Aantal aandelen</label>
+          <input id="trade-qty" type="number" min="0.01" step="0.01" class="account-input" placeholder="0" oninput="updateTradeTotal()">
+
+          <div id="trade-limit-row" class="hidden">
+            <label class="account-label" for="trade-limit-price">Limietprijs</label>
+            <input id="trade-limit-price" type="number" min="0.01" step="0.01" class="account-input" placeholder="0.00" oninput="updateTradeTotal()">
+          </div>
+
+          <div class="trade-total-row">
+            <span class="account-label">Geschatte waarde</span>
+            <span id="trade-total" style="font-weight:700;color:var(--text)">—</span>
+          </div>
+
+          <div id="trade-env-warning" class="trade-env-warning hidden">
+            ⚠️ Je staat op het punt een <strong>echte</strong> order te plaatsen (Live omgeving).
+          </div>
+
+          <button id="trade-submit-btn" class="btn-primary trade-submit" onclick="submitTrade()">Order plaatsen</button>
+          <div id="trade-result" class="account-status hidden"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="trading212.js"></script>
+  <script src="degiro.js"></script>
+  <script src="db.js"></script>
+  <script src="app.js"></script>
+  <script src="dashboard.js"></script>
+  <script src="account.js"></script>
+</body>
+</html>

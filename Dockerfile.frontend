@@ -1,0 +1,17 @@
+FROM nginx:alpine
+
+# Kopieer alle frontend bestanden
+COPY index.html /usr/share/nginx/html/
+COPY style.css /usr/share/nginx/html/
+COPY app.js /usr/share/nginx/html/
+COPY account.js /usr/share/nginx/html/
+COPY dashboard.js /usr/share/nginx/html/
+COPY trading212.js /usr/share/nginx/html/
+COPY degiro.js /usr/share/nginx/html/
+COPY db.js /usr/share/nginx/html/
+COPY data/ /usr/share/nginx/html/data/
+
+# Nginx config: stuur /proxy/* door naar de Python proxy
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80

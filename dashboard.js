@@ -1,0 +1,974 @@
+/* ─────────────────────────────────────────────────────────
+   Portfolio Dashboard – Bloomberg Terminal Stijl
+   Leest data uit dezelfde globals als app.js:
+     allRankings, pricesData, newsData
+   ───────────────────────────────────────────────────────── */
+
+// ── Constanten ──────────────────────────────────────────────
+const RISK_FREE_RATE = 0.045; // 4.5% jaarlijks risicovrij
+const SECTOR_COLORS = [
+  "#388bfd", "#3fb950", "#d29922", "#f85149", "#a371f7",
+  "#f0883e", "#79c0ff", "#56d364", "#ff7b72", "#e3b341",
+  "#8b949e", "#58a6ff"
+];
+
+// ── State ───────────────────────────────────────────────────
+let dashboardInitialized = false;
+let dbCharts = {};
+let portfolioData = {};   // geladen uit portfolio.json
+let fundamentalsData = {}; // geladen uit fundamentals.json
+let benchmarkPrices = null; // ^GSPC series uit prices.json
+
+// ── Portfolio helpers ────────────────────────────────────────
+function getPortfolioTickers() {
+  return Object.keys(portfolioData.holdings || {}).filter(t => {
+    const item = allRankings.find(r => r.ticker === t);
+    return item && item.price;
+  });
+}
+
+function getPortfolioWeights(tickers) {
+  const values = tickers.map(t => {
+    const item = allRankings.find(r => r.ticker === t);
+    const shares = portfolioData.holdings[t]?.shares || 0;
+    return (item?.price || 0) * shares;
+  });
+  const total = values.reduce((a, b) => a + b, 0);
+  return { weights: values.map(v => (total > 0 ? v / total : 0)), totalValue: total, values };
+}
+
+// ── Wiskunde helpers ─────────────────────────────────────────
+function dailyReturns(closeArr) {
+  const r = [];
+  for (let i = 1; i < closeArr.length; i++) {
+    r.push((closeArr[i] - closeArr[i - 1]) / closeArr[i - 1]);
+  }
+  return r;
+}
+
+function mean(arr) {
+  return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+
+function annualizedVol(returns) {
+  if (returns.length < 2) return 0;
+  const m = mean(returns);
+  const variance = returns.reduce((s, r) => s + Math.pow(r - m, 2), 0) / (returns.length - 1);
+  return Math.sqrt(variance * 252);
+}
+
+function maxDrawdown(closeArr) {
+  let peak = -Infinity, maxDD = 0;
+  for (const p of closeArr) {
+    if (p > peak) peak = p;
+    const dd = (peak - p) / peak;
+    if (dd > maxDD) maxDD = dd;
+  }
+  return maxDD;
+}
+
+function portfolioReturnsArr(tickers, weights, nDays = 252) {
+  const allReturns = tickers.map(t => {
+    const pd = pricesData[t];
+    if (!pd || !pd.close || pd.close.length < 2) return [];
+    return dailyReturns(pd.close.slice(-nDays - 1));
+  });
+  const minLen = Math.min(...allReturns.map(r => r.length).filter(l => l > 0));
+  if (minLen <= 0) return [];
+  const portReturns = [];
+  for (let i = 0; i < minLen; i++) {
+    let wr = 0;
+    for (let j = 0; j < tickers.length; j++) {
+      if (allReturns[j].length > 0) {
+        wr += weights[j] * (allReturns[j][i] || 0);
+      }
+    }
+    portReturns.push(wr);
+  }
+  return portReturns;
+}
+
+function portfolioCloseArr(tickers, weights, nDays = 252) {
+  // Normaliseer elke serie op 100 en weeg ze samen
+  const closes = tickers.map(t => {
+    const pd = pricesData[t];
+    if (!pd || !pd.close) return null;
+    return pd.close.slice(-nDays);
+  });
+  const minLen = Math.min(...closes.filter(c => c !== null).map(c => c.length));
+  if (minLen <= 0) return [];
+  const result = [];
+  for (let i = 0; i < minLen; i++) {
+    let val = 0;
+    for (let j = 0; j < tickers.length; j++) {
+      if (closes[j]) {
+        const normalized = (closes[j][i] / closes[j][0]) * 100;
+        val += weights[j] * normalized;
+      }
+    }
+    result.push(val);
+  }
+  return result;
+}
+
+function sharpeRatio(portReturns) {
+  if (portReturns.length < 20) return null;
+  const annualReturn = mean(portReturns) * 252;
+  const vol = annualizedVol(portReturns);
+  return vol > 0 ? (annualReturn - RISK_FREE_RATE) / vol : null;
+}
+
+function betaVsBenchmark(portReturns, benchReturns) {
+  const n = Math.min(portReturns.length, benchReturns.length);
+  if (n < 20) return null;
+  const p = portReturns.slice(-n), b = benchReturns.slice(-n);
+  const meanP = mean(p), meanB = mean(b);
+  const cov = p.reduce((s, r, i) => s + (r - meanP) * (b[i] - meanB), 0) / (n - 1);
+  const varB = b.reduce((s, r) => s + Math.pow(r - meanB, 2), 0) / (n - 1);
+  return varB > 0 ? cov / varB : null;
+}
+
+function pearsonCorr(a, b) {
+  const n = Math.min(a.length, b.length);
+  const ax = a.slice(-n), bx = b.slice(-n);
+  const meanA = mean(ax), meanB = mean(bx);
+  const num = ax.reduce((s, v, i) => s + (v - meanA) * (bx[i] - meanB), 0);
+  const denA = ax.reduce((s, v) => s + Math.pow(v - meanA, 2), 0);
+  const denB = bx.reduce((s, v) => s + Math.pow(v - meanB, 2), 0);
+  const den = Math.sqrt(denA * denB);
+  return den === 0 ? 0 : num / den;
+}
+
+function fmtCurrency(v, currency = "USD") {
+  if (v === null || v === undefined) return "—";
+  const sym = currency === "EUR" ? "€" : "$";
+  if (Math.abs(v) >= 1e6) return `${sym}${(v / 1e6).toFixed(2)}M`;
+  if (Math.abs(v) >= 1e3) return `${sym}${(v / 1e3).toFixed(1)}K`;
+  return `${sym}${v.toFixed(2)}`;
+}
+
+function fmtPctDB(v, decimals = 1) {
+  if (v === null || v === undefined) return "—";
+  const sign = v > 0 ? "+" : "";
+  const cls = v > 0 ? "pos" : v < 0 ? "neg" : "neutral";
+  return `<span class="${cls}">${sign}${v.toFixed(decimals)}%</span>`;
+}
+
+function colorForCorr(v) {
+  // Negatief = rood, positief = blauw
+  const abs = Math.abs(v);
+  if (v >= 0) return `rgba(56, 139, 253, ${0.15 + abs * 0.75})`;
+  return `rgba(248, 81, 73, ${0.15 + abs * 0.75})`;
+}
+
+// ── Dashboard: hoofd-init ────────────────────────────────────
+async function initDashboard() {
+  if (dashboardInitialized) return;
+
+  // Laad portfolio.json
+  try {
+    const [portRes, fundRes] = await Promise.all([
+      fetch("data/portfolio.json"),
+      fetch("data/fundamentals.json"),
+    ]);
+    portfolioData = portRes.ok ? await portRes.json() : { holdings: {} };
+    fundamentalsData = fundRes.ok ? await fundRes.json() : {};
+  } catch (e) {
+    portfolioData = { holdings: {} };
+    fundamentalsData = {};
+  }
+
+  // Haal ^GSPC benchmark op uit prices.json als die er is
+  benchmarkPrices = pricesData["^GSPC"] || null;
+
+  dashboardInitialized = true;
+
+  const tickers = getPortfolioTickers();
+  if (tickers.length === 0) {
+    document.getElementById("db-no-holdings").classList.remove("hidden");
+    document.getElementById("db-main-grid").classList.add("hidden");
+    return;
+  }
+
+  const { weights, totalValue, values } = getPortfolioWeights(tickers);
+
+  renderDashboardHeader(tickers, weights, totalValue, values);
+  renderHoldingsTable(tickers, weights, values);
+  if (typeof T212 !== "undefined" && T212.isConfigured()) {
+    renderPerformanceChartFromT212(tickers);
+  } else {
+    renderPerformanceChart(tickers, weights);
+  }
+  renderRiskPanel(tickers, weights);
+  renderSectorDonut(tickers, weights);
+  renderVolatilityBars(tickers);
+  renderEarningsCalendar(tickers);
+  renderCorrelationMatrix(tickers);
+  renderRiskSuggestions(tickers, weights);
+  renderTopMovers();
+}
+
+// ── Header bar ───────────────────────────────────────────────
+function renderDashboardHeader(tickers, weights, totalValue, values) {
+  // Dag verandering
+  let dayChange = 0;
+  for (let i = 0; i < tickers.length; i++) {
+    const item = allRankings.find(r => r.ticker === tickers[i]);
+    if (!item) continue;
+    const prevValue = values[i] / (1 + (item.change_1d || 0) / 100);
+    dayChange += values[i] - prevValue;
+  }
+  const dayChangePct = totalValue > 0 ? (dayChange / (totalValue - dayChange)) * 100 : 0;
+
+  // Totaal rendement
+  let totalCost = 0;
+  for (const t of tickers) {
+    const h = portfolioData.holdings[t];
+    if (h?.avg_cost) totalCost += h.shares * h.avg_cost;
+  }
+  const totalReturn = totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : null;
+
+  // Sentiment
+  const avgSentiment = tickers.reduce((s, t) => {
+    const item = allRankings.find(r => r.ticker === t);
+    return s + (item?.news_sentiment_avg || 0.5);
+  }, 0) / tickers.length;
+  const sentimentLabel = avgSentiment > 0.6 ? "BULLISH" : avgSentiment < 0.4 ? "BEARISH" : "NEUTRAAL";
+  const sentimentClass = avgSentiment > 0.6 ? "pos" : avgSentiment < 0.4 ? "neg" : "neutral";
+
+  document.getElementById("db-stat-value").textContent = fmtCurrency(totalValue, "USD").replace("$", "$ ");
+  document.getElementById("db-stat-daychange").innerHTML = fmtPctDB(dayChangePct) + ` <small>(${dayChange >= 0 ? "+" : ""}${fmtCurrency(Math.abs(dayChange))})</small>`;
+  document.getElementById("db-stat-return").innerHTML = totalReturn !== null ? fmtPctDB(totalReturn) : "—";
+  document.getElementById("db-stat-sentiment").innerHTML = `<span class="${sentimentClass}" style="font-weight:700">${sentimentLabel}</span>`;
+}
+
+// ── Holdings tabel ────────────────────────────────────────────
+function renderHoldingsTable(tickers, weights, values) {
+  const tbody = document.getElementById("db-holdings-tbody");
+  let html = "";
+  // Sorteer op waarde (grootste eerst)
+  const sorted = tickers.map((t, i) => ({ t, w: weights[i], v: values[i] }))
+    .sort((a, b) => b.v - a.v);
+
+  for (const { t, w, v } of sorted) {
+    const item = allRankings.find(r => r.ticker === t);
+    if (!item) continue;
+    const sym = item.currency === "EUR" ? "€" : "$";
+    const pct1d = item.change_1d;
+    const cls1d = pct1d > 0 ? "pos" : pct1d < 0 ? "neg" : "neutral";
+    const sign = pct1d > 0 ? "+" : "";
+    const hasKey = typeof T212 !== "undefined" && T212.isConfigured();
+    const tradeBtnCls = hasKey ? "trade-btn" : "trade-btn no-key";
+    const tradeBtnTitle = hasKey ? "Trade via Trading 212" : "Stel eerst een API-sleutel in op de Account pagina";
+    const tradeOnClick = hasKey
+      ? `openTradeModal('${t}', '${(item.name || t).replace(/'/g, "\\'")}', ${item.price})`
+      : "";
+    html += `
+      <tr>
+        <td class="db-hold-ticker">${t.replace(".AS", "").replace(".DE", "").replace(".PA", "")}</td>
+        <td class="db-hold-price">${sym}${item.price.toFixed(2)}</td>
+        <td class="${cls1d}">${sign}${pct1d?.toFixed(2) ?? "—"}%</td>
+        <td class="db-hold-alloc">${(w * 100).toFixed(1)}%</td>
+        <td class="db-hold-val">${fmtCurrency(v)}</td>
+        <td><button class="${tradeBtnCls}" title="${tradeBtnTitle}" ${tradeOnClick ? `onclick="${tradeOnClick}"` : "disabled"}>Trade</button></td>
+      </tr>`;
+  }
+  tbody.innerHTML = html;
+}
+
+// ── Performance grafiek ────────────────────────────────────────
+function renderPerformanceChart(tickers, weights) {
+  const canvas = document.getElementById("db-perf-canvas");
+  if (!canvas) return;
+  if (dbCharts.perf) { dbCharts.perf.destroy(); }
+
+  const nDays = 252;
+  const portClose = portfolioCloseArr(tickers, weights, nDays);
+  if (portClose.length === 0) return;
+
+  // Gebruik de langste beschikbare datumreeks van de eerste ticker
+  const refTicker = tickers[0];
+  const refDates = pricesData[refTicker]?.dates?.slice(-portClose.length) || [];
+
+  const datasets = [{
+    label: "Portfolio",
+    data: portClose,
+    borderColor: "#388bfd",
+    backgroundColor: "rgba(56,139,253,0.06)",
+    fill: true,
+    borderWidth: 2,
+    pointRadius: 0,
+    tension: 0.1,
+  }];
+
+  // Benchmark ^GSPC als die beschikbaar is
+  if (benchmarkPrices && benchmarkPrices.close) {
+    const benchClose = benchmarkPrices.close.slice(-nDays);
+    const normalizedBench = benchClose.map(v => (v / benchClose[0]) * 100);
+    datasets.push({
+      label: "S&P 500",
+      data: normalizedBench.slice(0, portClose.length),
+      borderColor: "#8b949e",
+      borderDash: [4, 4],
+      borderWidth: 1.5,
+      pointRadius: 0,
+      fill: false,
+    });
+  }
+
+  dbCharts.perf = new Chart(canvas, {
+    type: "line",
+    data: { labels: refDates, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: "#8b949e", font: { size: 11 }, boxWidth: 20 }
+        },
+        tooltip: {
+          backgroundColor: "#161b22",
+          borderColor: "#30363d",
+          borderWidth: 1,
+          titleColor: "#8b949e",
+          bodyColor: "#e6edf3",
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.raw?.toFixed(1)} (basis 100)`,
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: "#8b949e", font: { size: 10 }, maxTicksLimit: 8 },
+          grid: { color: "rgba(48,54,61,0.5)" },
+        },
+        y: {
+          ticks: { color: "#8b949e", font: { size: 10 }, callback: v => v.toFixed(0) },
+          grid: { color: "rgba(48,54,61,0.5)" },
+        }
+      }
+    }
+  });
+}
+
+// ── Performance grafiek op basis van T212 transacties ─────────
+async function renderPerformanceChartFromT212(tickers) {
+  const canvas = document.getElementById("db-perf-canvas");
+  if (!canvas) return;
+  if (dbCharts.perf) { dbCharts.perf.destroy(); }
+
+  // Gebruik geladen CSV-transacties als die beschikbaar zijn — anders fallback
+  // _allTransactions is gezet door parseCsv() in account.js
+  const csvOrders = (typeof _allTransactions !== "undefined" && _allTransactions?.length > 0)
+    ? _allTransactions : null;
+
+  let orders;
+  if (csvOrders) {
+    orders = csvOrders;
+  } else {
+    // Geen CSV-data geladen — toon gewoon gewogen grafiek zonder transacties
+    const { weights } = getPortfolioWeights(tickers);
+    renderPerformanceChart(tickers, weights);
+    return;
+  }
+
+  // Filter: alleen uitgevoerde BUY orders met fillPrice/total en dateModified
+  const executed = orders.filter(o =>
+    (o.status === "FILLED" || o.fillPrice || o.total) &&
+    (o.fillPrice || o.total) && o.dateModified
+  ).sort((a, b) => new Date(a.dateModified) - new Date(b.dateModified));
+
+  if (executed.length === 0) {
+    // Geen transacties — fallback
+    const { weights } = getPortfolioWeights(tickers);
+    renderPerformanceChart(tickers, weights);
+    return;
+  }
+
+  // Bouw dagelijkse portfoliowaarde op basis van:
+  // 1. Cumulatieve posities per datum (hoeveel aandelen bezit je per dag)
+  // 2. Sluitingsprijs van die dag uit pricesData
+
+  // Stap 1: bepaal datumreeks (eerste transactie t/m vandaag)
+  const firstDate = new Date(executed[0].dateModified);
+  firstDate.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const allDates = [];
+  for (let d = new Date(firstDate); d <= today; d.setDate(d.getDate() + 1)) {
+    allDates.push(new Date(d).toISOString().slice(0, 10));
+  }
+
+  // Stap 2: bouw positiemap op per datum
+  const holdings = {}; // ticker -> shares
+  const portfolioValues = [];
+  const labels = [];
+
+  // Indexeer prijsdata per ticker per datum
+  const priceIndex = {};
+  for (const ticker of tickers) {
+    const pd = pricesData[ticker];
+    if (!pd || !pd.dates || !pd.close) continue;
+    priceIndex[ticker] = {};
+    pd.dates.forEach((date, i) => { priceIndex[ticker][date] = pd.close[i]; });
+  }
+
+  // Maak transactie-lookup per datum
+  const txByDate = {};
+  for (const o of executed) {
+    const date = o.dateModified.slice(0, 10);
+    if (!txByDate[date]) txByDate[date] = [];
+    txByDate[date].push(o);
+  }
+
+  let lastKnownValue = null;
+
+  for (const date of allDates) {
+    // Verwerk transacties op deze datum
+    if (txByDate[date]) {
+      for (const o of txByDate[date]) {
+        // Probeer ticker te matchen met pricesData tickers
+        const t212ticker = o.ticker || "";
+        const matchedTicker = tickers.find(t => {
+          const base = t.replace(".AS", "").replace(".DE", "").replace(".PA", "").toUpperCase();
+          return t212ticker.toUpperCase().startsWith(base);
+        }) || null;
+
+        if (!matchedTicker) continue;
+        if (!holdings[matchedTicker]) holdings[matchedTicker] = 0;
+        const qty = o.filledQuantity || o.quantity || 0;
+        if (o.type === "BUY"  || o.side === "BUY")  holdings[matchedTicker] += qty;
+        if (o.type === "SELL" || o.side === "SELL") holdings[matchedTicker] -= qty;
+      }
+    }
+
+    // Bereken waarde op deze datum
+    let value = 0;
+    let hasPrice = false;
+    for (const [ticker, shares] of Object.entries(holdings)) {
+      if (shares <= 0) continue;
+      const price = priceIndex[ticker]?.[date];
+      if (price) { value += shares * price; hasPrice = true; }
+    }
+
+    if (hasPrice && value > 0) {
+      portfolioValues.push(value);
+      labels.push(date);
+      lastKnownValue = value;
+    }
+  }
+
+  if (portfolioValues.length < 2) {
+    // Te weinig data — fallback
+    const { weights } = getPortfolioWeights(tickers);
+    renderPerformanceChart(tickers, weights);
+    return;
+  }
+
+  // Normaliseer op basis 100
+  const base = portfolioValues[0];
+  const normalized = portfolioValues.map(v => (v / base) * 100);
+
+  const datasets = [{
+    label: "Portfolio (transacties)",
+    data: normalized,
+    borderColor: "#388bfd",
+    backgroundColor: "rgba(56,139,253,0.06)",
+    fill: true,
+    borderWidth: 2,
+    pointRadius: 0,
+    tension: 0.1,
+  }];
+
+  // Benchmark
+  if (benchmarkPrices && benchmarkPrices.close && benchmarkPrices.dates) {
+    const benchIndex = {};
+    benchmarkPrices.dates.forEach((d, i) => { benchIndex[d] = benchmarkPrices.close[i]; });
+    const benchValues = labels.map(d => benchIndex[d] || null);
+    const firstBench = benchValues.find(v => v !== null);
+    if (firstBench) {
+      datasets.push({
+        label: "S&P 500",
+        data: benchValues.map(v => v !== null ? (v / firstBench) * 100 : null),
+        borderColor: "#8b949e",
+        borderDash: [4, 4],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: false,
+        spanGaps: true,
+      });
+    }
+  }
+
+  dbCharts.perf = new Chart(canvas, {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { labels: { color: "#8b949e", font: { size: 11 }, boxWidth: 20 } },
+        tooltip: {
+          backgroundColor: "#161b22",
+          borderColor: "#30363d",
+          borderWidth: 1,
+          titleColor: "#8b949e",
+          bodyColor: "#e6edf3",
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.raw?.toFixed(1)} (basis 100)`,
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: "#8b949e", font: { size: 10 }, maxTicksLimit: 8 },
+          grid: { color: "rgba(48,54,61,0.5)" },
+        },
+        y: {
+          ticks: { color: "#8b949e", font: { size: 10 }, callback: v => v.toFixed(0) },
+          grid: { color: "rgba(48,54,61,0.5)" },
+        }
+      }
+    }
+  });
+}
+
+// ── Risico panel ──────────────────────────────────────────────
+function renderRiskPanel(tickers, weights) {
+  const portRets = portfolioReturnsArr(tickers, weights, 252);
+  const portVol = portRets.length > 0 ? annualizedVol(portRets) : null;
+
+  // Max drawdown van portfolio waarde
+  const portClose = portfolioCloseArr(tickers, weights, 252);
+  const portDD = portClose.length > 0 ? maxDrawdown(portClose) : null;
+
+  // Sharpe
+  const sharpe = portRets.length > 0 ? sharpeRatio(portRets) : null;
+
+  // Beta
+  let beta = null;
+  if (benchmarkPrices && benchmarkPrices.close) {
+    const benchRets = dailyReturns(benchmarkPrices.close.slice(-253));
+    beta = betaVsBenchmark(portRets, benchRets);
+  }
+
+  // Top concentratie
+  const maxWeight = Math.max(...weights) * 100;
+  const topTicker = tickers[weights.indexOf(Math.max(...weights))];
+
+  // Gewogen P/E
+  const weightedPE = tickers.reduce((s, t, i) => {
+    const item = allRankings.find(r => r.ticker === t);
+    return s + (item?.pe || 0) * weights[i];
+  }, 0);
+
+  const metrics = [
+    { label: "Volatiliteit (jaar)", value: portVol !== null ? `${(portVol * 100).toFixed(1)}%` : "—",
+      sub: portVol !== null ? (portVol > 0.25 ? "Hoog" : portVol > 0.15 ? "Gemiddeld" : "Laag") : "",
+      cls: portVol !== null ? (portVol > 0.25 ? "neg" : portVol > 0.15 ? "warn" : "pos") : "" },
+    { label: "Max Drawdown", value: portDD !== null ? `-${(portDD * 100).toFixed(1)}%` : "—",
+      sub: portDD !== null ? (portDD > 0.2 ? "Groot verlies" : "Beheersbaar") : "",
+      cls: portDD !== null ? (portDD > 0.2 ? "neg" : "neutral") : "" },
+    { label: "Sharpe Ratio", value: sharpe !== null ? sharpe.toFixed(2) : "—",
+      sub: sharpe !== null ? (sharpe > 1 ? "Uitstekend" : sharpe > 0.5 ? "Goed" : "Slecht") : "",
+      cls: sharpe !== null ? (sharpe > 1 ? "pos" : sharpe > 0.5 ? "warn" : "neg") : "" },
+    { label: "Beta (vs S&P 500)", value: beta !== null ? beta.toFixed(2) : "—",
+      sub: beta !== null ? (beta > 1.3 ? "Hoge marktgev." : beta < 0.7 ? "Defensief" : "Marktconform") : "Geen benchmark",
+      cls: beta !== null ? (beta > 1.3 ? "neg" : "neutral") : "neutral" },
+    { label: "Top concentratie", value: `${maxWeight.toFixed(1)}%`,
+      sub: topTicker?.replace(".AS", "").replace(".DE", "").replace(".PA", ""),
+      cls: maxWeight > 30 ? "neg" : maxWeight > 20 ? "warn" : "pos" },
+    { label: "Gewogen K/W", value: weightedPE > 0 ? weightedPE.toFixed(1) + "x" : "—",
+      sub: weightedPE > 35 ? "Hoge waardering" : weightedPE > 20 ? "Gemiddeld" : "Laag",
+      cls: weightedPE > 35 ? "neg" : "neutral" },
+  ];
+
+  const container = document.getElementById("db-risk-metrics");
+  container.innerHTML = metrics.map(m => `
+    <div class="db-risk-item">
+      <div class="db-risk-label">${m.label}</div>
+      <div class="db-risk-value ${m.cls}">${m.value}</div>
+      ${m.sub ? `<div class="db-risk-sub">${m.sub}</div>` : ""}
+    </div>
+  `).join("");
+}
+
+// ── Sector donut ──────────────────────────────────────────────
+function renderSectorDonut(tickers, weights) {
+  const canvas = document.getElementById("db-sector-canvas");
+  if (!canvas) return;
+  if (dbCharts.sector) { dbCharts.sector.destroy(); }
+
+  const sectorMap = {};
+  for (let i = 0; i < tickers.length; i++) {
+    const item = allRankings.find(r => r.ticker === tickers[i]);
+    const sector = item?.sector || "Overig";
+    sectorMap[sector] = (sectorMap[sector] || 0) + weights[i];
+  }
+
+  const labels = Object.keys(sectorMap);
+  const data = labels.map(l => (sectorMap[l] * 100).toFixed(1));
+
+  dbCharts.sector = new Chart(canvas, {
+    type: "doughnut",
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: SECTOR_COLORS.slice(0, labels.length),
+        borderColor: "#0d1117",
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "60%",
+      plugins: {
+        legend: {
+          position: "right",
+          labels: { color: "#8b949e", font: { size: 10 }, boxWidth: 12, padding: 8 }
+        },
+        tooltip: {
+          backgroundColor: "#161b22",
+          borderColor: "#30363d",
+          borderWidth: 1,
+          titleColor: "#8b949e",
+          bodyColor: "#e6edf3",
+          callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw}%` }
+        }
+      }
+    }
+  });
+}
+
+// ── Volatiliteit bars ─────────────────────────────────────────
+function renderVolatilityBars(tickers) {
+  const canvas = document.getElementById("db-vol-canvas");
+  if (!canvas) return;
+  if (dbCharts.vol) { dbCharts.vol.destroy(); }
+
+  const vols = tickers.map(t => {
+    const pd = pricesData[t];
+    if (!pd || !pd.close || pd.close.length < 20) return 0;
+    return (annualizedVol(dailyReturns(pd.close)) * 100);
+  });
+
+  const labels = tickers.map(t => t.replace(".AS", "").replace(".DE", "").replace(".PA", ""));
+  const sorted = labels.map((l, i) => ({ l, v: vols[i] })).sort((a, b) => b.v - a.v);
+
+  dbCharts.vol = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: sorted.map(s => s.l),
+      datasets: [{
+        data: sorted.map(s => s.v.toFixed(1)),
+        backgroundColor: sorted.map(s => s.v > 35 ? "rgba(248,81,73,0.7)" : s.v > 25 ? "rgba(210,153,34,0.7)" : "rgba(56,139,253,0.7)"),
+        borderRadius: 3,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#161b22",
+          borderColor: "#30363d",
+          borderWidth: 1,
+          titleColor: "#8b949e",
+          bodyColor: "#e6edf3",
+          callbacks: { label: ctx => ` Vol: ${ctx.raw}%` }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: "#8b949e", font: { size: 10 }, callback: v => v + "%" },
+          grid: { color: "rgba(48,54,61,0.5)" },
+        },
+        y: { ticks: { color: "#e6edf3", font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ── Earnings kalender ─────────────────────────────────────────
+function renderEarningsCalendar(tickers) {
+  const container = document.getElementById("db-earnings-list");
+  const entries = [];
+
+  for (const t of tickers) {
+    const fund = fundamentalsData[t];
+    const item = allRankings.find(r => r.ticker === t);
+    const name = item?.name || t;
+    const ticker = t.replace(".AS", "").replace(".DE", "").replace(".PA", "");
+    if (fund?.earnings_date && fund.earnings_date !== "null" && fund.earnings_date !== "None") {
+      const d = new Date(fund.earnings_date);
+      if (!isNaN(d)) entries.push({ ticker, name, date: d, raw: fund.earnings_date });
+    } else {
+      entries.push({ ticker, name, date: null, raw: null });
+    }
+  }
+
+  entries.sort((a, b) => {
+    if (!a.date && !b.date) return 0;
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return a.date - b.date;
+  });
+
+  const today = new Date();
+  let html = "";
+  for (const e of entries.slice(0, 8)) {
+    if (!e.date) continue;
+    const diff = Math.round((e.date - today) / (1000 * 60 * 60 * 24));
+    const diffLabel = diff < 0 ? `${Math.abs(diff)}d geleden` : diff === 0 ? "Vandaag" : diff === 1 ? "Morgen" : `Over ${diff}d`;
+    const dateStr = e.date.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+    const cls = diff < 0 ? "neutral" : diff <= 7 ? "pos" : "";
+    html += `
+      <div class="db-earnings-row">
+        <span class="db-earnings-ticker">${e.ticker}</span>
+        <span class="db-earnings-date">${dateStr}</span>
+        <span class="db-earnings-diff ${cls}">${diffLabel}</span>
+      </div>`;
+  }
+
+  if (!html) {
+    html = `<p class="db-empty">Geen earnings datum data.<br><small>Herrun fetch_data.py voor earnings data.</small></p>`;
+  }
+  container.innerHTML = html;
+}
+
+// ── Correlatie matrix ─────────────────────────────────────────
+function renderCorrelationMatrix(tickers) {
+  const canvas = document.getElementById("db-corr-canvas");
+  if (!canvas) return;
+
+  const labels = tickers.map(t => t.replace(".AS", "").replace(".DE", "").replace(".PA", ""));
+  const n = tickers.length;
+
+  // Bereken alle dagelijkse rendementen
+  const returns = tickers.map(t => {
+    const pd = pricesData[t];
+    if (!pd || !pd.close) return [];
+    return dailyReturns(pd.close.slice(-126)); // 6 maanden
+  });
+
+  // Teken de matrix handmatig op canvas
+  const dpr = window.devicePixelRatio || 1;
+  const containerW = canvas.parentElement.clientWidth || 300;
+  const size = Math.min(containerW, 400);
+  const cellSize = Math.floor((size - 60) / n);
+  const offsetX = 50;
+  const offsetY = 14;
+  const totalW = offsetX + cellSize * n + 4;
+  const totalH = offsetY + cellSize * n + 40;
+
+  canvas.width = totalW * dpr;
+  canvas.height = totalH * dpr;
+  canvas.style.width = totalW + "px";
+  canvas.style.height = totalH + "px";
+
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, totalW, totalH);
+
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const corr = i === j ? 1.0 : pearsonCorr(returns[i], returns[j]);
+      ctx.fillStyle = colorForCorr(corr);
+      ctx.fillRect(offsetX + j * cellSize, offsetY + i * cellSize, cellSize - 1, cellSize - 1);
+
+      // Toon correlatie waarde in cel
+      if (cellSize >= 28) {
+        ctx.fillStyle = corr > 0.3 || corr < -0.3 ? "#fff" : "#8b949e";
+        ctx.font = `${Math.max(8, Math.min(11, cellSize * 0.35))}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(corr.toFixed(2), offsetX + j * cellSize + cellSize / 2, offsetY + i * cellSize + cellSize / 2);
+      }
+    }
+
+    // Y labels (rij)
+    ctx.fillStyle = "#8b949e";
+    ctx.font = `${Math.max(8, Math.min(10, cellSize * 0.38))}px sans-serif`;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText(labels[i], offsetX - 4, offsetY + i * cellSize + cellSize / 2);
+
+    // X labels (kolom) — onderaan, gedraaid
+    ctx.save();
+    ctx.translate(offsetX + i * cellSize + cellSize / 2, offsetY + n * cellSize + 4);
+    ctx.rotate(-Math.PI / 4);
+    ctx.textAlign = "right";
+    ctx.textBaseline = "top";
+    ctx.fillText(labels[i], 0, 0);
+    ctx.restore();
+  }
+}
+
+// ── Risico suggesties ─────────────────────────────────────────
+function renderRiskSuggestions(tickers, weights) {
+  const portRets = portfolioReturnsArr(tickers, weights, 252);
+  const portVol = portRets.length > 0 ? annualizedVol(portRets) : null;
+  const sharpe = portRets.length > 0 ? sharpeRatio(portRets) : null;
+  const maxWeight = Math.max(...weights);
+  const topTicker = tickers[weights.indexOf(maxWeight)];
+  const topName = topTicker?.replace(".AS", "").replace(".DE", "").replace(".PA", "");
+  const weightedPE = tickers.reduce((s, t, i) => {
+    const item = allRankings.find(r => r.ticker === t);
+    return s + (item?.pe || 0) * weights[i];
+  }, 0);
+
+  const suggestions = [];
+
+  if (maxWeight > 0.30) {
+    suggestions.push({
+      type: "danger",
+      title: "Hoge concentratie",
+      text: `${topName} beslaat ${(maxWeight * 100).toFixed(1)}% van de portfolio. Overweeg spreiding.`
+    });
+  }
+
+  if (portVol !== null && portVol > 0.25) {
+    suggestions.push({
+      type: "danger",
+      title: "Hoge volatiliteit",
+      text: `Jaarlijkse volatiliteit van ${(portVol * 100).toFixed(1)}% is boven de 25% drempel.`
+    });
+  } else if (portVol !== null && portVol > 0.18) {
+    suggestions.push({
+      type: "warn",
+      title: "Verhoogde volatiliteit",
+      text: `Volatiliteit van ${(portVol * 100).toFixed(1)}% — overweeg defensievere posities.`
+    });
+  }
+
+  if (sharpe !== null && sharpe < 0.5) {
+    suggestions.push({
+      type: "danger",
+      title: "Lage Sharpe Ratio",
+      text: `Sharpe van ${sharpe.toFixed(2)} — slechte risico-gecorrigeerde return. Bekijk posities.`
+    });
+  } else if (sharpe !== null && sharpe > 1.5) {
+    suggestions.push({
+      type: "good",
+      title: "Uitstekende Sharpe Ratio",
+      text: `Sharpe van ${sharpe.toFixed(2)} — sterke risico-gecorrigeerde performance.`
+    });
+  }
+
+  if (weightedPE > 35) {
+    suggestions.push({
+      type: "warn",
+      title: "Hoge waardering",
+      text: `Gewogen K/W van ${weightedPE.toFixed(1)}x — portfolio prijst veel groei in.`
+    });
+  }
+
+  // Sector concentratie check
+  const sectorMap = {};
+  for (let i = 0; i < tickers.length; i++) {
+    const item = allRankings.find(r => r.ticker === tickers[i]);
+    const sector = item?.sector || "Overig";
+    sectorMap[sector] = (sectorMap[sector] || 0) + weights[i];
+  }
+  const topSector = Object.entries(sectorMap).sort((a, b) => b[1] - a[1])[0];
+  if (topSector && topSector[1] > 0.50) {
+    suggestions.push({
+      type: "warn",
+      title: "Sector concentratie",
+      text: `${(topSector[1] * 100).toFixed(1)}% in ${topSector[0]}. Overweeg meer sectorale spreiding.`
+    });
+  }
+
+  if (suggestions.length === 0) {
+    suggestions.push({
+      type: "good",
+      title: "Portfolio ziet er goed uit",
+      text: "Geen kritieke risico's gedetecteerd op basis van de huidige data."
+    });
+  }
+
+  const container = document.getElementById("db-suggestions-list");
+  container.innerHTML = suggestions.map(s => `
+    <div class="db-suggestion db-suggest-${s.type}">
+      <div class="db-suggest-title">${s.title}</div>
+      <div class="db-suggest-text">${s.text}</div>
+    </div>
+  `).join("");
+}
+
+// ── Top movers ────────────────────────────────────────────────
+function renderTopMovers() {
+  const container = document.getElementById("db-movers-list");
+  if (!allRankings || allRankings.length === 0) return;
+
+  const sorted = [...allRankings]
+    .filter(r => r.change_1d !== null && r.change_1d !== undefined)
+    .sort((a, b) => Math.abs(b.change_1d) - Math.abs(a.change_1d))
+    .slice(0, 10);
+
+  const gainers = sorted.filter(r => r.change_1d > 0).slice(0, 5);
+  const losers = sorted.filter(r => r.change_1d < 0).slice(0, 5);
+
+  let html = `<div class="db-movers-cols">`;
+
+  html += `<div class="db-movers-col">
+    <div class="db-movers-header pos">Stijgers</div>`;
+  for (const r of gainers) {
+    const ticker = r.ticker.replace(".AS", "").replace(".DE", "").replace(".PA", "");
+    html += `
+      <div class="db-mover-row">
+        <span class="db-mover-ticker">${ticker}</span>
+        <span class="pos">+${r.change_1d.toFixed(2)}%</span>
+      </div>`;
+  }
+  html += `</div>`;
+
+  html += `<div class="db-movers-col">
+    <div class="db-movers-header neg">Dalers</div>`;
+  for (const r of losers) {
+    const ticker = r.ticker.replace(".AS", "").replace(".DE", "").replace(".PA", "");
+    html += `
+      <div class="db-mover-row">
+        <span class="db-mover-ticker">${ticker}</span>
+        <span class="neg">${r.change_1d.toFixed(2)}%</span>
+      </div>`;
+  }
+  html += `</div></div>`;
+
+  container.innerHTML = html;
+}
+
+// ── Tab switcher (wordt opgeroepen vanuit app.js context) ─────
+function setupDashboardTab() {
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const tab = btn.dataset.tab;
+      const mainContent    = document.getElementById("main-content");
+      const dashContent    = document.getElementById("dashboard-content");
+      const accountContent = document.getElementById("account-content");
+      const geschContent   = document.getElementById("geschiedenis-content");
+      mainContent.classList.add("hidden");
+      dashContent.classList.add("hidden");
+      if (accountContent) accountContent.classList.add("hidden");
+      if (geschContent)   geschContent.classList.add("hidden");
+
+      if (tab === "rankings") {
+        mainContent.classList.remove("hidden");
+      } else if (tab === "dashboard") {
+        dashContent.classList.remove("hidden");
+        initDashboard();
+      }
+      // "account" en "geschiedenis" worden afgehandeld door account.js
+    });
+  });
+}

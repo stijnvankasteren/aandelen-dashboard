@@ -1,0 +1,50 @@
+{
+  "indices": {
+    "AEX": {
+      "name": "AEX Index",
+      "currency": "EUR",
+      "tickers": [
+        "ASML.AS", "HEIA.AS", "INGA.AS", "PHIA.AS", "ADYEN.AS",
+        "SHELL.AS", "ABN.AS", "AH.AS", "AKZA.AS", "NN.AS",
+        "WKL.AS", "RAND.AS", "IMCD.AS", "BESI.AS", "UNA.AS",
+        "AD.AS", "KPN.AS", "MT.AS", "PRX.AS", "EXO.AS"
+      ]
+    },
+    "DAX": {
+      "name": "DAX Index",
+      "currency": "EUR",
+      "tickers": [
+        "SAP.DE", "SIE.DE", "ALV.DE", "DTE.DE", "BAYN.DE",
+        "BMW.DE", "MBG.DE", "VOW3.DE", "BAS.DE", "HEN3.DE",
+        "ADS.DE", "MRK.DE", "DB1.DE", "CBK.DE", "DBK.DE",
+        "1COV.DE", "RWE.DE", "MUV2.DE", "HNR1.DE", "ZAL.DE"
+      ]
+    },
+    "CAC40": {
+      "name": "CAC 40 Index",
+      "currency": "EUR",
+      "tickers": [
+        "MC.PA", "OR.PA", "SAN.PA", "AIR.PA", "BNP.PA",
+        "KER.PA", "RI.PA", "HO.PA", "CS.PA", "ACA.PA",
+        "ORA.PA", "SGO.PA", "STMPA.PA", "VIE.PA", "CAP.PA",
+        "BN.PA", "GLE.PA", "DG.PA", "TEP.PA", "AI.PA"
+      ]
+    },
+    "SP500": {
+      "name": "S&P 500 (Top 50)",
+      "currency": "USD",
+      "tickers": [
+        "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL",
+        "META", "BRK-B", "LLY", "JPM", "XOM",
+        "V", "UNH", "JNJ", "AVGO", "MA",
+        "TSLA", "PG", "COST", "MRK", "HD",
+        "ABBV", "CVX", "KO", "PEP", "ADBE",
+        "WMT", "BAC", "CRM", "ACN", "TMO",
+        "MCD", "CSCO", "LIN", "ABT", "ORCL",
+        "NKE", "DHR", "NEE", "TXN", "PM",
+        "AMD", "QCOM", "RTX", "GE", "NOW",
+        "LOW", "UPS", "AMGN", "ISRG", "MDT"
+      ]
+    }
+  }
+}

@@ -1,0 +1,553 @@
+{
+  "_date": "2026-03-14",
+  "ASML.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "HEIA.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "INGA.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "PHIA.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ADYEN.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "SHELL.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ABN.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "AH.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "AKZA.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "NN.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "WKL.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "RAND.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "IMCD.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "BESI.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "UNA.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "AD.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "KPN.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "MT.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "PRX.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "EXO.AS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "SAP.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "SIE.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ALV.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "DTE.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "BAYN.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "BMW.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "MBG.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "VOW3.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "BAS.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "HEN3.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ADS.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "MRK.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "DB1.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "CBK.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "DBK.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "1COV.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "RWE.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "MUV2.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "HNR1.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ZAL.DE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "MC.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "OR.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "SAN.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "AIR.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "BNP.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "KER.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "RI.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "HO.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "CS.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ACA.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ORA.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "SGO.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "STMPA.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "VIE.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "CAP.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "BN.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "GLE.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "DG.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "TEP.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "AI.PA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "AAPL": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "MSFT": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "NVDA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "AMZN": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "GOOGL": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "META": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "BRK-B": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "LLY": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "JPM": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "XOM": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "V": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "UNH": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "JNJ": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "AVGO": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "MA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "TSLA": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "PG": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "COST": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "MRK": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "HD": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ABBV": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "CVX": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "KO": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "PEP": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ADBE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "WMT": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "BAC": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "CRM": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ACN": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "TMO": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "MCD": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "CSCO": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "LIN": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ABT": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ORCL": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "NKE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "DHR": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "NEE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "TXN": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "PM": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "AMD": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "QCOM": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "RTX": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "GE": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "NOW": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "LOW": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "UPS": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "AMGN": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "ISRG": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  },
+  "MDT": {
+    "sentiment_avg": null,
+    "sentiment_score": 50.0,
+    "articles": []
+  }
+}

@@ -1,0 +1,1 @@
+0 8,12,17 * * * cd /app && python3 fetch_t212_csv.py >> /app/data/t212_cron.log 2>&1
