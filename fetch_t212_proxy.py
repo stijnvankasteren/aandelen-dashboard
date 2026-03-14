@@ -10,9 +10,14 @@ Start:  python3 fetch_t212_proxy.py
 import json
 import base64
 import time
+import subprocess
+import threading
 import urllib.request
 import urllib.error
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+_refresh_lock = threading.Lock()
+_refresh_running = False
 
 PORT = 8081
 T212_BASES = {
@@ -59,10 +64,52 @@ class ProxyHandler(BaseHTTPRequestHandler):
                     time.sleep(wait)
                 _last_export_get_time = time.time()
 
+    def _handle_refresh(self):
+        global _refresh_running
+        with _refresh_lock:
+            if _refresh_running:
+                self.send_response(409)
+                self._cors_headers()
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"status":"busy","message":"Refresh draait al"}')
+                return
+            _refresh_running = True
+        try:
+            print("[proxy/refresh] fetch_data.py gestart...")
+            result = subprocess.run(
+                ["python3", "/app/fetch_data.py"],
+                capture_output=True, text=True, timeout=300
+            )
+            print("[proxy/refresh] fetch_data.py klaar")
+            self.send_response(200)
+            self._cors_headers()
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok"}).encode())
+        except subprocess.TimeoutExpired:
+            self.send_response(504)
+            self._cors_headers()
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"status":"error","message":"Timeout"}')
+        except Exception as e:
+            self.send_response(500)
+            self._cors_headers()
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode())
+        finally:
+            with _refresh_lock:
+                _refresh_running = False
+
     def _handle(self, method):
         raw_path = self.path
 
-        if raw_path.startswith("/degiro"):
+        if raw_path == "/refresh":
+            self._handle_refresh()
+            return
+        elif raw_path.startswith("/degiro"):
             self._handle_degiro(method, raw_path[7:])
         elif raw_path.startswith("/s3download"):
             self._handle_s3download()

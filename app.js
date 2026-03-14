@@ -2,6 +2,28 @@
    Portfolio Analyser – Frontend logica
    ───────────────────────────────────────────────────────── */
 
+// ── Refresh ────────────────────────────────────────────────
+async function triggerRefresh() {
+  const btn = document.getElementById("refresh-btn");
+  btn.textContent = "Bezig...";
+  btn.style.pointerEvents = "none";
+  try {
+    const resp = await fetch("/proxy/refresh");
+    if (resp.ok) {
+      location.reload();
+    } else {
+      const data = await resp.json().catch(() => ({}));
+      alert(data.message || "Refresh mislukt");
+      btn.textContent = "Vernieuwen";
+      btn.style.pointerEvents = "";
+    }
+  } catch (e) {
+    alert("Kon proxy niet bereiken");
+    btn.textContent = "Vernieuwen";
+    btn.style.pointerEvents = "";
+  }
+}
+
 // ── State ──────────────────────────────────────────────────
 let allRankings = [];
 let pricesData  = {};
