@@ -10,7 +10,7 @@ services:
     container_name: portfolio-frontend
     restart: unless-stopped
     ports:
-      - "6000:80"
+      - "6080:80"
     depends_on:
       - proxy
 
