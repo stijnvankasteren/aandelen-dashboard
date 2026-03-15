@@ -63,22 +63,27 @@ function getPortfolioWeights(tickers) {
 }
 
 // Echte totaalwaarde van alle T212-posities in EUR.
-// kostprijsEUR (uit CSV) + ppl (T212, al in EUR) = huidige marktwaarde in EUR
+// Voorkeur: cost_eur (CSV) + ppl (T212 EUR). Fallback: averagePrice * shares + ppl
+// (averagePrice is lokale munt maar voor EUR-aandelen klopt dit direct).
 function getT212TotalValue() {
   const holdings = portfolioData.holdings || {};
   return Object.values(holdings).reduce((s, h) => {
-    const cost = h.cost_eur;   // gezet vanuit CSV total
-    const ppl  = h.ppl;
-    if (cost != null && ppl != null) return s + cost + ppl;
-    if (cost != null) return s + cost;
+    const ppl = h.ppl ?? 0;
+    if (h.cost_eur != null) return s + h.cost_eur + ppl;
+    // Fallback: avg_cost * shares (lokale munt ≈ EUR voor Europese aandelen)
+    if (h.avg_cost != null && h.shares) return s + (h.avg_cost * h.shares) + ppl;
     return s;
   }, 0);
 }
 
-// Totale kostprijs van alle T212-posities in EUR (uit CSV)
+// Totale kostprijs van alle T212-posities in EUR (uit CSV indien beschikbaar)
 function getT212TotalCost() {
   const holdings = portfolioData.holdings || {};
-  return Object.values(holdings).reduce((s, h) => s + (h.cost_eur || 0), 0);
+  return Object.values(holdings).reduce((s, h) => {
+    if (h.cost_eur != null) return s + h.cost_eur;
+    if (h.avg_cost != null && h.shares) return s + (h.avg_cost * h.shares);
+    return s;
+  }, 0);
 }
 
 // ── Wiskunde helpers ─────────────────────────────────────────
@@ -249,44 +254,46 @@ async function initDashboard() {
     }
   }
 
-  // Bereken kostprijs in EUR per positie vanuit CSV-transacties (total = EUR-bedrag)
-  // en sla op als cost_eur. Dit is de enige valutaneutrale kostprijs.
+  // Bereken kostprijs in EUR per positie vanuit CSV-transacties.
+  // Gebruik alleen de huidige open positie: shares * gemiddelde aankoopprijs in EUR.
+  // De CSV "total (EUR)" geeft het betaalde EUR-bedrag per transactie.
   if (typeof _allTransactions !== "undefined" && _allTransactions.length > 0) {
-    // Bouw kostprijs op per yahoo-ticker via CSV total (EUR)
-    const costByTicker = {}; // yahooTicker → netto kostprijs in EUR
-    for (const tx of _allTransactions) {
-      const csvTicker = (tx.ticker || "").toUpperCase();
-      if (!csvTicker || csvTicker === "—") continue;
-      // Zoek yahoo-ticker voor deze CSV-ticker
-      const yahoo = Object.keys(portfolioData.holdings).find(h =>
-        h.replace(".AS","").replace(".DE","").replace(".PA","").toUpperCase() === csvTicker
-      ) || csvTicker;
-      if (!costByTicker[yahoo]) costByTicker[yahoo] = 0;
-      const total = Math.abs(tx.total || (tx.fillPrice * (tx.filledQuantity || 0)) || 0);
+    // Per ticker: bouw FIFO-kostprijs op (alleen huidige positie telt)
+    const sharesHeld    = {}; // ticker → huidige aandelen (uit transacties)
+    const costAccum     = {}; // ticker → geaccumuleerde kostprijs EUR voor huidige shares
+
+    // Sorteer op datum (oudste eerst) voor correcte FIFO
+    const sorted = [..._allTransactions].sort((a, b) =>
+      new Date(a.dateModified) - new Date(b.dateModified)
+    );
+
+    for (const tx of sorted) {
+      const key = (tx.ticker || "").toUpperCase();
+      if (!key || key === "—") continue;
+      if (!sharesHeld[key]) { sharesHeld[key] = 0; costAccum[key] = 0; }
+      const qty   = tx.filledQuantity || tx.quantity || 0;
+      const total = Math.abs(tx.total || (tx.fillPrice * qty) || 0);
       if (tx.side === "BUY" || tx.type === "BUY") {
-        costByTicker[yahoo] += total;
+        sharesHeld[key] += qty;
+        costAccum[key]  += total;
       } else if (tx.side === "SELL" || tx.type === "SELL") {
-        // Proportioneel verminderen: schat via de huidige positie
-        const h = portfolioData.holdings[yahoo];
-        if (h && h.shares > 0 && costByTicker[yahoo] > 0) {
-          const qty = tx.filledQuantity || 0;
-          const ratio = qty / (h.shares + qty); // aandeel van totaal dat verkocht is
-          costByTicker[yahoo] = Math.max(0, costByTicker[yahoo] * (1 - ratio));
+        if (sharesHeld[key] > 0) {
+          const sellRatio = Math.min(qty / sharesHeld[key], 1);
+          costAccum[key]  = Math.max(0, costAccum[key] * (1 - sellRatio));
+          sharesHeld[key] = Math.max(0, sharesHeld[key] - qty);
         }
       }
     }
-    // Koppel kostprijs aan holdings
-    for (const [yahoo, cost] of Object.entries(costByTicker)) {
-      if (portfolioData.holdings[yahoo]) {
+
+    // Koppel cost_eur aan holdings (match op basisnaam)
+    for (const [csvKey, cost] of Object.entries(costAccum)) {
+      if (cost <= 0) continue;
+      // Zoek yahoo-ticker in holdings
+      const yahoo = Object.keys(portfolioData.holdings).find(h =>
+        h.replace(".AS","").replace(".DE","").replace(".PA","").toUpperCase() === csvKey
+      );
+      if (yahoo) {
         portfolioData.holdings[yahoo].cost_eur = cost;
-      }
-    }
-    // avg_cost fallback voor universe-tickers zonder averagePrice
-    for (const ticker of Object.keys(portfolioData.holdings)) {
-      if (portfolioData.holdings[ticker].avg_cost) continue;
-      const h = portfolioData.holdings[ticker];
-      if (h.cost_eur && h.shares > 0) {
-        portfolioData.holdings[ticker].avg_cost = h.cost_eur / h.shares;
       }
     }
   }
@@ -469,25 +476,24 @@ async function renderPerformanceChartFromT212(tickers) {
     return;
   }
 
-  // Strategie: Time-Weighted Return (TWR) via dagelijkse koerswijzigingen.
-  // Gebruik pricesData voor koershistorie (universe-tickers).
-  // Per dag: gewogen dagrendement = Σ (dagret_ticker × costEur_ticker) / Σ costEur
-  // Dit elimineert het effect van stortingen — alleen koersprestatie telt.
+  // Strategie: TWR op basis van alle posities waarvoor pricesData beschikbaar is.
+  // Alle tickers met historische koersdata (universe + eventuele extra) worden meegenomen.
+  // Het gewicht per positie is de kostprijs in EUR uit de CSV.
 
-  // Indexeer prijsdata per universe-ticker per datum
+  // Indexeer prijsdata voor ALLE tickers in pricesData (niet alleen universe)
   const priceIndex = {};
-  for (const ticker of tickers) {
-    const pd = pricesData[ticker];
+  for (const [ticker, pd] of Object.entries(pricesData)) {
     if (!pd || !pd.dates || !pd.close) continue;
     priceIndex[ticker] = {};
     pd.dates.forEach((date, i) => { priceIndex[ticker][date] = pd.close[i]; });
   }
 
-  // CSV-ticker → Yahoo-ticker (exacte match op basisnaam)
+  // CSV-ticker → Yahoo/pricesData-ticker (match op basisnaam)
+  const allPriceTickers = Object.keys(pricesData);
   const csvToYahoo = (csvTicker) => {
     if (!csvTicker) return null;
     const up = csvTicker.toUpperCase();
-    return tickers.find(t =>
+    return allPriceTickers.find(t =>
       t.replace(".AS","").replace(".DE","").replace(".PA","").toUpperCase() === up
     ) || null;
   };
@@ -512,15 +518,14 @@ async function renderPerformanceChartFromT212(tickers) {
 
   // holdings: yahooTicker → { shares, costEur }
   const holdings = {};
-  // prevPrices: yahooTicker → slotkoers vorige handelsdag
-  const prevPrices = {};
+  const prevPrices = {}; // yahooTicker → slotkoers vorige handelsdag
 
-  let twrIndex = 100; // start op 100
+  let twrIndex = 100;
   const portfolioValues = [];
   const labels = [];
 
   for (const date of allDates) {
-    // Verwerk eerst transacties van die dag (nieuwe posities tellen mee vanaf volgende dag)
+    // Verwerk transacties van die dag
     if (txByDate[date]) {
       for (const o of txByDate[date]) {
         const yahoo = csvToYahoo(o.ticker || "");
@@ -529,7 +534,6 @@ async function renderPerformanceChartFromT212(tickers) {
         const qty   = o.filledQuantity || o.quantity || 0;
         const total = Math.abs(o.total || (o.fillPrice * qty) || 0);
         if (o.side === "BUY" || o.type === "BUY") {
-          // Sla aankoopprijs op als prevPrice zodat morgen het dagrendement correct is
           if (!prevPrices[yahoo] && o.fillPrice) prevPrices[yahoo] = o.fillPrice;
           holdings[yahoo].shares  += qty;
           holdings[yahoo].costEur += total;
@@ -543,7 +547,7 @@ async function renderPerformanceChartFromT212(tickers) {
       }
     }
 
-    // Bereken gewogen dagrendement voor posities met bekende prijzen
+    // Bereken gewogen dagrendement
     let weightedRet = 0;
     let totalWeight = 0;
     for (const [ticker, pos] of Object.entries(holdings)) {
@@ -555,7 +559,7 @@ async function renderPerformanceChartFromT212(tickers) {
           weightedRet += ((priceToday - priceYest) / priceYest) * pos.costEur;
           totalWeight += pos.costEur;
         }
-        prevPrices[ticker] = priceToday; // update voor morgen
+        prevPrices[ticker] = priceToday;
       }
     }
 
@@ -563,7 +567,6 @@ async function renderPerformanceChartFromT212(tickers) {
       twrIndex *= (1 + weightedRet / totalWeight);
     }
 
-    // Voeg toe als er al posities zijn
     const hasPositions = Object.values(holdings).some(p => p.shares > 0);
     if (hasPositions) {
       portfolioValues.push(parseFloat(twrIndex.toFixed(3)));
