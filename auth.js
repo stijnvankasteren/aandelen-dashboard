@@ -140,6 +140,7 @@ const Auth = (() => {
     loadSettings, saveSettings,
     loadTransactions, saveTransactions,
     loadDividends, saveDividends,
+    saveSession: _saveSession,
   };
 })();
 
@@ -242,7 +243,7 @@ async function authDoLogin() {
       document.getElementById("auth-totp-code").focus();
       return;
     }
-    _saveSession(data);
+    Auth.saveSession(data);
     await authOnSuccess();
   } catch (e) {
     authShowError(e.message);
@@ -264,7 +265,7 @@ async function authDoTotp() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Code onjuist.");
-    _saveSession(data);
+    Auth.saveSession(data);
     _pendingLoginUser = null; _pendingLoginPass = null;
     await authOnSuccess();
   } catch (e) {
@@ -285,7 +286,7 @@ async function authDoTotpBackup() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Ongeldige backup code.");
-    _saveSession(data);
+    Auth.saveSession(data);
     _pendingLoginUser = null; _pendingLoginPass = null;
     await authOnSuccess();
   } catch (e) {
