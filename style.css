@@ -1588,9 +1588,11 @@ tbody td {
   align-items: center;
   justify-content: center;
   z-index: 9999;
+  min-height: 100vh;
 }
 
 .auth-overlay.hidden { display: none; }
+.auth-overlay:empty  { display: none; }
 
 .auth-box {
   background: var(--surface);

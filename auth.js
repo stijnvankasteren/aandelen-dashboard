@@ -337,18 +337,20 @@ async function authOnSuccess() {
 }
 
 async function authInit() {
-  if (!Auth.isLoggedIn()) {
+  try {
+    renderAuthOverlay(); // toon altijd eerst het loginscherm
+    if (!Auth.isLoggedIn()) return;
+    // Token aanwezig — verifieer met server
+    const valid = await Auth.verify();
+    if (!valid) {
+      Auth.logout();
+      return;
+    }
+    await authOnSuccess();
+  } catch (e) {
+    console.error("[auth] authInit fout:", e);
     renderAuthOverlay();
-    return;
   }
-  // Token aanwezig — verifieer met server
-  const valid = await Auth.verify();
-  if (!valid) {
-    Auth.logout();
-    renderAuthOverlay();
-    return;
-  }
-  await authOnSuccess();
 }
 
 // ── 2FA beheer ────────────────────────────────────────────────
