@@ -12,21 +12,35 @@ const Auth = (() => {
 
   // ── Sessie ────────────────────────────────────────────────
 
-  function getToken()    { return localStorage.getItem(KEY_TOKEN)    || ""; }
-  function getUsername() { return localStorage.getItem(KEY_USERNAME) || ""; }
-  function getUserId()   { return parseInt(localStorage.getItem(KEY_USERID) || "0"); }
+  function _store(key, val) {
+    try { localStorage.setItem(key, val); } catch(e) {}
+    try { sessionStorage.setItem(key, val); } catch(e) {}
+  }
+  function _read(key) {
+    try { const v = sessionStorage.getItem(key); if (v) return v; } catch(e) {}
+    try { return localStorage.getItem(key) || ""; } catch(e) {}
+    return "";
+  }
+  function _remove(key) {
+    try { localStorage.removeItem(key); } catch(e) {}
+    try { sessionStorage.removeItem(key); } catch(e) {}
+  }
+
+  function getToken()    { return _read(KEY_TOKEN); }
+  function getUsername() { return _read(KEY_USERNAME); }
+  function getUserId()   { return parseInt(_read(KEY_USERID) || "0"); }
   function isLoggedIn()  { return getToken().length > 0; }
 
   function _saveSession(data) {
-    localStorage.setItem(KEY_TOKEN,    data.token);
-    localStorage.setItem(KEY_USERNAME, data.username);
-    localStorage.setItem(KEY_USERID,   data.userId);
+    _store(KEY_TOKEN,    data.token);
+    _store(KEY_USERNAME, data.username);
+    _store(KEY_USERID,   String(data.userId));
   }
 
   function _clearSession() {
-    localStorage.removeItem(KEY_TOKEN);
-    localStorage.removeItem(KEY_USERNAME);
-    localStorage.removeItem(KEY_USERID);
+    _remove(KEY_TOKEN);
+    _remove(KEY_USERNAME);
+    _remove(KEY_USERID);
   }
 
   function _headers(extra = {}) {
