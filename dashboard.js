@@ -34,6 +34,7 @@ let dashboardInitialized = false;
 let dbCharts = {};
 let _dbPerfData = null;      // { labels, datasets } volledig — voor periodefiltering
 let _dbPerfPeriod = "MAX";   // actieve periode
+let _dbTxPortfolioValues = null; // dagelijkse portfoliowaarden op basis van echte transacties
 let portfolioData = {};   // geladen uit portfolio.json
 let fundamentalsData = {}; // geladen uit fundamentals.json
 let benchmarkPrices = null; // ^GSPC series uit prices.json
@@ -250,7 +251,7 @@ async function initDashboard() {
   renderDashboardHeader(tickers, weights, totalValue, values);
   renderHoldingsTable(tickers, weights, values);
   if (typeof T212 !== "undefined" && T212.isConfigured()) {
-    renderPerformanceChartFromT212(tickers);
+    await renderPerformanceChartFromT212(tickers);
   } else {
     renderPerformanceChart(tickers, weights);
   }
@@ -491,6 +492,9 @@ async function renderPerformanceChartFromT212(tickers) {
     return;
   }
 
+  // Sla ruwe waarden op voor risico analyse
+  _dbTxPortfolioValues = portfolioValues;
+
   // Normaliseer op basis 100
   const base = portfolioValues[0];
   const normalized = portfolioValues.map(v => (v / base) * 100);
@@ -613,11 +617,19 @@ function _setupPerfPeriodButtons() {
 
 // ── Risico panel ──────────────────────────────────────────────
 function renderRiskPanel(tickers, weights) {
-  const portRets = portfolioReturnsArr(tickers, weights, 252);
+  // Gebruik echte transactiegebaseerde portfoliowaarden als die beschikbaar zijn
+  let portRets, portClose;
+  if (_dbTxPortfolioValues && _dbTxPortfolioValues.length >= 20) {
+    portClose = _dbTxPortfolioValues;
+    portRets = dailyReturns(_dbTxPortfolioValues);
+  } else {
+    portRets = portfolioReturnsArr(tickers, weights, 252);
+    portClose = portfolioCloseArr(tickers, weights, 252);
+  }
+
   const portVol = portRets.length > 0 ? annualizedVol(portRets) : null;
 
   // Max drawdown van portfolio waarde
-  const portClose = portfolioCloseArr(tickers, weights, 252);
   const portDD = portClose.length > 0 ? maxDrawdown(portClose) : null;
 
   // Sharpe
@@ -889,7 +901,9 @@ function renderCorrelationMatrix(tickers) {
 
 // ── Risico suggesties ─────────────────────────────────────────
 function renderRiskSuggestions(tickers, weights) {
-  const portRets = portfolioReturnsArr(tickers, weights, 252);
+  const portRets = (_dbTxPortfolioValues && _dbTxPortfolioValues.length >= 20)
+    ? dailyReturns(_dbTxPortfolioValues)
+    : portfolioReturnsArr(tickers, weights, 252);
   const portVol = portRets.length > 0 ? annualizedVol(portRets) : null;
   const sharpe = portRets.length > 0 ? sharpeRatio(portRets) : null;
   const maxWeight = Math.max(...weights);
