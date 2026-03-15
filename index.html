@@ -25,6 +25,7 @@
     <nav class="tab-bar">
       <button class="tab-btn active" data-tab="rankings">Rankings</button>
       <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="trades">Trades</button>
       <button class="tab-btn" data-tab="geschiedenis">Geschiedenis</button>
       <button class="tab-btn" data-tab="account">Account</button>
     </nav>
@@ -486,6 +487,60 @@
     </div>
   </div>
 
+  <!-- ── Trades pagina ───────────────────────────────────── -->
+  <div id="trades-content" class="hidden">
+    <div class="trades-wrapper">
+
+      <div class="trades-subtabs">
+        <button class="trades-subtab active" data-subtab="insider">Form 4 — Insider Trades</button>
+        <button class="trades-subtab" data-subtab="congress">Congress Trades</button>
+      </div>
+
+      <!-- Zoekbalk + filter -->
+      <div class="trades-filter-bar">
+        <input type="search" id="trades-search" placeholder="Zoek ticker..." autocomplete="off">
+        <span id="trades-count" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+
+      <!-- Insider tabel -->
+      <div id="trades-insider-panel">
+        <table class="trades-table">
+          <thead>
+            <tr>
+              <th class="trades-sortable" data-col="ticker">Ticker</th>
+              <th class="trades-sortable" data-col="name">Naam</th>
+              <th class="trades-sortable" data-col="index">Index</th>
+              <th class="trades-sortable" data-col="buy_count">Buys</th>
+              <th class="trades-sortable" data-col="sell_count">Sells</th>
+              <th class="trades-sortable" data-col="score">Score</th>
+              <th>Recente filings</th>
+            </tr>
+          </thead>
+          <tbody id="trades-insider-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Congress tabel -->
+      <div id="trades-congress-panel" class="hidden">
+        <table class="trades-table">
+          <thead>
+            <tr>
+              <th class="trades-sortable" data-col="ticker">Ticker</th>
+              <th class="trades-sortable" data-col="name">Naam</th>
+              <th class="trades-sortable" data-col="index">Index</th>
+              <th class="trades-sortable" data-col="buy_count">Buys</th>
+              <th class="trades-sortable" data-col="sell_count">Sells</th>
+              <th class="trades-sortable" data-col="score">Score</th>
+              <th>Recente trades</th>
+            </tr>
+          </thead>
+          <tbody id="trades-congress-tbody"></tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
   <!-- ── Trade Modal ─────────────────────────────────────── -->
   <div id="trade-modal-overlay" class="modal-overlay hidden" onclick="closeTradeModal(event)">
     <div class="modal trade-modal" id="trade-modal">
@@ -544,5 +599,6 @@
   <script src="app.js"></script>
   <script src="dashboard.js"></script>
   <script src="account.js"></script>
+  <script src="trades.js"></script>
 </body>
 </html>

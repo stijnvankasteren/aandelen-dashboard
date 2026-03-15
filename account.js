@@ -910,10 +910,12 @@ function setupAccountTab() {
       const tab = btn.dataset.tab;
       const accountContent    = document.getElementById("account-content");
       const geschContent      = document.getElementById("geschiedenis-content");
+      const tradesContent     = document.getElementById("trades-content");
       if (tab === "account") {
         document.getElementById("main-content").classList.add("hidden");
         document.getElementById("dashboard-content").classList.add("hidden");
-        geschContent.classList.add("hidden");
+        if (geschContent)  geschContent.classList.add("hidden");
+        if (tradesContent) tradesContent.classList.add("hidden");
         accountContent.classList.remove("hidden");
         if (!_accountTabInited) {
           _bindAccountButtons();
@@ -924,6 +926,7 @@ function setupAccountTab() {
         document.getElementById("main-content").classList.add("hidden");
         document.getElementById("dashboard-content").classList.add("hidden");
         accountContent.classList.add("hidden");
+        if (tradesContent) tradesContent.classList.add("hidden");
         geschContent.classList.remove("hidden");
         if (!_geschTabInited) {
           _geschTabInited = true;

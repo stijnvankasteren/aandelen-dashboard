@@ -1010,10 +1010,12 @@ function setupDashboardTab() {
       const dashContent    = document.getElementById("dashboard-content");
       const accountContent = document.getElementById("account-content");
       const geschContent   = document.getElementById("geschiedenis-content");
+      const tradesContent  = document.getElementById("trades-content");
       mainContent.classList.add("hidden");
       dashContent.classList.add("hidden");
       if (accountContent) accountContent.classList.add("hidden");
       if (geschContent)   geschContent.classList.add("hidden");
+      if (tradesContent)  tradesContent.classList.add("hidden");
 
       if (tab === "rankings") {
         mainContent.classList.remove("hidden");
@@ -1021,6 +1023,9 @@ function setupDashboardTab() {
         dashContent.classList.remove("hidden");
         dashboardInitialized = false;
         initDashboard();
+      } else if (tab === "trades") {
+        if (tradesContent) tradesContent.classList.remove("hidden");
+        if (typeof initTradesTab === "function") initTradesTab();
       } else if (tab === "geschiedenis") {
         if (geschContent) geschContent.classList.remove("hidden");
         // Herlaad transacties vanuit server-DB
