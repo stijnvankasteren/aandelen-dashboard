@@ -1,1 +1,3 @@
-0 8,12,17 * * * cd /app && python3 fetch_t212_csv.py >> /app/data/t212_cron.log 2>&1
+0 8,12,17 * * * /app/run_csv_daily.sh >> /app/data/t212_cron.log 2>&1
+0 8,12,17 * * * /app/run_positions_refresh.sh >> /app/data/t212_cron.log 2>&1
+0 8 * * * cd /app && python3 fetch_data.py >> /app/data/fetch_cron.log 2>&1

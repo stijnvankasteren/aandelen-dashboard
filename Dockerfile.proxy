@@ -27,7 +27,9 @@ RUN chmod 0644 /etc/cron.d/portfolio-cron && crontab /etc/cron.d/portfolio-cron
 
 # Start zowel de proxy als cron
 COPY start_proxy.sh .
-RUN chmod +x start_proxy.sh
+COPY run_csv_daily.sh .
+COPY run_positions_refresh.sh .
+RUN chmod +x start_proxy.sh run_csv_daily.sh run_positions_refresh.sh
 
 EXPOSE 8081
 

@@ -3,6 +3,9 @@
 cp -n /app/defaults/universe.json /app/data/universe.json
 cp -n /app/defaults/portfolio.json /app/data/portfolio.json
 
+# Zorg dat het cron script uitvoerbaar is
+chmod +x /app/run_csv_daily.sh
+
 # Start cron daemon op de achtergrond
 cron
 

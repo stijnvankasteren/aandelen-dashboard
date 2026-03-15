@@ -267,27 +267,6 @@
   <div id="geschiedenis-content" class="hidden">
     <div class="gesch-wrapper">
 
-      <!-- CSV import -->
-      <div class="gesch-section">
-        <div class="gesch-section-header">
-          <h2 class="account-title">CSV Importeren</h2>
-        </div>
-        <p class="account-desc" style="margin-bottom:12px">
-          Haal automatisch je volledige transactiegeschiedenis op via de Trading 212 en/of DEGIRO API,
-          of upload een CSV die je zelf hebt gedownload via de app.
-        </p>
-        <div class="gesch-csv-row">
-          <button id="gesch-api-fetch-btn" class="btn-primary">Ophalen via API</button>
-          <span style="color:var(--muted);font-size:12px">of</span>
-          <label class="gesch-csv-label" for="gesch-csv-input">
-            <span id="gesch-csv-label-text">Kies CSV bestand...</span>
-            <input type="file" id="gesch-csv-input" accept=".csv" style="display:none">
-          </label>
-          <button id="gesch-csv-clear" class="btn-danger btn-sm" style="display:none">Wissen</button>
-        </div>
-        <div id="gesch-api-progress" class="gesch-loading hidden"></div>
-        <div id="gesch-csv-status"></div>
-      </div>
 
       <!-- Samenvatting stats -->
       <div class="gesch-stats" id="gesch-stats"></div>
@@ -367,6 +346,8 @@
             <button id="t212-save-btn" class="btn-primary">Opslaan</button>
             <button id="t212-test-btn" class="btn-secondary">Verbinding testen</button>
             <button id="t212-clear-btn" class="btn-danger">Verwijderen</button>
+            <button id="t212-sync-btn" class="btn-secondary" title="Alle jaren opnieuw synchroniseren">&#x21bb;</button>
+            <span id="t212-last-sync" style="font-size:12px;color:var(--muted);align-self:center"></span>
           </div>
 
           <div id="t212-status" class="account-status hidden"></div>
@@ -501,15 +482,6 @@
         </div>
       </div>
 
-      <div class="account-section">
-        <h2 class="account-title">Hoe werkt het?</h2>
-        <ol class="account-howto">
-          <li>Genereer een API-sleutel in je Trading 212 account (Instellingen → API).</li>
-          <li>Kies de juiste omgeving (<strong>Demo</strong> voor oefenen, <strong>Live</strong> voor echte orders).</li>
-          <li>Start de lokale proxy: <code>python3 fetch_t212_proxy.py</code></li>
-          <li>Ga naar het <strong>Dashboard</strong> en klik op <strong>Trade</strong> naast een holding.</li>
-        </ol>
-      </div>
 
     </div>
   </div>

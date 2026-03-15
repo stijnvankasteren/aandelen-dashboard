@@ -28,6 +28,18 @@ async function saveApiSettings() {
     console.warn("[account] Kon instellingen niet opslaan op server:", e);
   }
   showStatus("Instellingen opgeslagen.", "ok");
+
+  // Start volledige CSV fetch alleen als er nog geen cache is (nieuwe verbinding)
+  const csvCheck = await fetch("/proxy/user/csv", {
+    headers: { "X-Auth-Token": Auth.getToken() },
+  }).catch(() => null);
+  if (!csvCheck || !csvCheck.ok || (await csvCheck.clone().text()).trim() === "") {
+    showStatus("Instellingen opgeslagen. Historische CSV wordt opgehaald op de achtergrond...", "ok");
+    fetch("/proxy/user/csv/full", {
+      method: "POST",
+      headers: { "X-Auth-Token": Auth.getToken() },
+    }).catch(() => {});
+  }
 }
 
 async function testConnection() {
@@ -57,98 +69,114 @@ function clearApiSettings() {
   showStatus("API-sleutels verwijderd.", "info");
 }
 
-async function showAccountInfo(cashData = null) {
+async function showAccountInfo() {
   const section = document.getElementById("t212-account-info");
   section.style.display = "block";
 
-  if (!cashData) {
-    try { cashData = await T212.getCash(); } catch { return; }
+  // Laad altijd uit gecachede DB — wordt bijgewerkt om 8:00, 12:00 en 17:00
+  try {
+    const res = await fetch("/proxy/user/positions", {
+      headers: { "X-Auth-Token": Auth.getToken() },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      document.getElementById("t212-cash-info").innerHTML =
+        `<span style="color:var(--muted);font-size:12px">${err.error || "Nog geen data. Wacht op de volgende refresh (8:00, 12:00 of 17:00)."}</span>`;
+      document.getElementById("t212-positions-list").innerHTML = "";
+      document.getElementById("t212-orders-list").innerHTML = "";
+      return;
+    }
+    const cache = await res.json();
+    const cashData    = cache.cash      || {};
+    const positions   = cache.positions || [];
+    const fetchedAt   = cache.fetched_at ? new Date(cache.fetched_at).toLocaleString("nl-NL") : "onbekend";
+
+    const grid = document.getElementById("t212-cash-info");
+    grid.innerHTML = `
+      <div class="account-info-card">
+        <div class="account-info-card-label">Vrij saldo</div>
+        <div class="account-info-card-value">${formatCurrency(cashData.free, cashData.currency)}</div>
+      </div>
+      <div class="account-info-card">
+        <div class="account-info-card-label">Totaal saldo</div>
+        <div class="account-info-card-value">${formatCurrency(cashData.total, cashData.currency)}</div>
+      </div>
+      <div class="account-info-card">
+        <div class="account-info-card-label">Geblokkeerd</div>
+        <div class="account-info-card-value">${formatCurrency(cashData.blocked || 0, cashData.currency)}</div>
+      </div>
+      <div class="account-info-card" style="grid-column:1/-1">
+        <div class="account-info-card-label">Laatste update</div>
+        <div class="account-info-card-value" style="font-size:12px;color:var(--muted)">${fetchedAt}</div>
+      </div>
+    `;
+
+    renderCachedPositions(positions);
+  } catch (e) {
+    document.getElementById("t212-cash-info").innerHTML =
+      `<span style="color:var(--red);font-size:12px">Fout: ${e.message}</span>`;
   }
 
-  const grid = document.getElementById("t212-cash-info");
-  grid.innerHTML = `
-    <div class="account-info-card">
-      <div class="account-info-card-label">Vrij saldo</div>
-      <div class="account-info-card-value">${formatCurrency(cashData.free, cashData.currency)}</div>
-    </div>
-    <div class="account-info-card">
-      <div class="account-info-card-label">Totaal saldo</div>
-      <div class="account-info-card-value">${formatCurrency(cashData.total, cashData.currency)}</div>
-    </div>
-    <div class="account-info-card">
-      <div class="account-info-card-label">Geblokkeerd</div>
-      <div class="account-info-card-value">${formatCurrency(cashData.blocked || 0, cashData.currency)}</div>
-    </div>
-  `;
-
-  loadPositions();
   loadOrders();
 }
 
-async function loadPositions() {
+function renderCachedPositions(positions) {
   const container = document.getElementById("t212-positions-list");
-  container.innerHTML = `<span style="color:var(--muted);font-size:12px">Laden...</span>`;
-  try {
-    const positions = await T212.getPositions();
-    if (!positions || positions.length === 0) {
-      container.innerHTML = `<span style="color:var(--muted);font-size:12px">Geen open posities.</span>`;
-      return;
-    }
-
-    // Bereken totale waarde voor allocatie %
-    const totalValue = positions.reduce((s, p) => s + (p.currentPrice * p.quantity || 0), 0);
-
-    const rows = positions
-      .slice()
-      .sort((a, b) => (b.currentPrice * b.quantity) - (a.currentPrice * a.quantity))
-      .map(p => {
-        const value     = p.currentPrice * p.quantity;
-        const ppl       = p.ppl ?? (p.currentPrice - p.averagePrice) * p.quantity;
-        const pplPct    = p.averagePrice > 0 ? ((p.currentPrice - p.averagePrice) / p.averagePrice) * 100 : null;
-        const pplCls    = ppl >= 0 ? "pos" : "neg";
-        const pplSign   = ppl >= 0 ? "+" : "";
-        const allocPct  = totalValue > 0 ? (value / totalValue * 100).toFixed(1) : "—";
-
-        return `
-          <div class="t212-position-row">
-            <div class="t212-pos-ticker">${p.ticker}</div>
-            <div class="t212-pos-detail">
-              <span class="t212-pos-qty">${p.quantity} aand.</span>
-              <span class="t212-pos-avg">gem. ${formatCurrency(p.averagePrice, p.currency)}</span>
-            </div>
-            <div class="t212-pos-right">
-              <span class="t212-pos-value">${formatCurrency(value, p.currency)}</span>
-              <span class="t212-pos-alloc">${allocPct}%</span>
-              <span class="t212-pos-ppl ${pplCls}">${pplSign}${formatCurrency(ppl, p.currency)}${pplPct !== null ? ` (${pplSign}${pplPct.toFixed(2)}%)` : ""}</span>
-            </div>
-          </div>`;
-      }).join("");
-
-    // Totaalregel
-    const totalPpl = positions.reduce((s, p) => s + (p.ppl ?? (p.currentPrice - p.averagePrice) * p.quantity), 0);
-    const totalPplCls  = totalPpl >= 0 ? "pos" : "neg";
-    const totalPplSign = totalPpl >= 0 ? "+" : "";
-
-    container.innerHTML = `
-      <div class="t212-positions-table">
-        <div class="t212-pos-header">
-          <span>Positie</span><span></span>
-          <div class="t212-pos-right"><span>Waarde</span><span>Alloc</span><span>Winst/Verlies</span></div>
-        </div>
-        ${rows}
-        <div class="t212-pos-total">
-          <span style="font-weight:700">Totaal</span><span></span>
-          <div class="t212-pos-right">
-            <span style="font-weight:700">${formatCurrency(totalValue)}</span>
-            <span>100%</span>
-            <span class="${totalPplCls}" style="font-weight:700">${totalPplSign}${formatCurrency(totalPpl)}</span>
-          </div>
-        </div>
-      </div>`;
-  } catch (e) {
-    container.innerHTML = `<span style="color:var(--red);font-size:12px">Fout: ${e.message}</span>`;
+  if (!positions || positions.length === 0) {
+    container.innerHTML = `<span style="color:var(--muted);font-size:12px">Geen open posities.</span>`;
+    return;
   }
+
+  const totalValue = positions.reduce((s, p) => s + ((p.currentPrice || 0) * (p.quantity || 0)), 0);
+
+  const rows = positions
+    .slice()
+    .sort((a, b) => (b.currentPrice * b.quantity) - (a.currentPrice * a.quantity))
+    .map(p => {
+      const value    = (p.currentPrice || 0) * (p.quantity || 0);
+      const ppl      = p.ppl ?? ((p.currentPrice - p.averagePrice) * p.quantity);
+      const pplPct   = p.averagePrice > 0 ? ((p.currentPrice - p.averagePrice) / p.averagePrice) * 100 : null;
+      const pplCls   = ppl >= 0 ? "pos" : "neg";
+      const pplSign  = ppl >= 0 ? "+" : "";
+      const allocPct = totalValue > 0 ? (value / totalValue * 100).toFixed(1) : "—";
+
+      return `
+        <div class="t212-position-row">
+          <div class="t212-pos-ticker">${p.ticker}</div>
+          <div class="t212-pos-detail">
+            <span class="t212-pos-qty">${p.quantity} aand.</span>
+            <span class="t212-pos-avg">gem. ${formatCurrency(p.averagePrice, p.currency)}</span>
+          </div>
+          <div class="t212-pos-right">
+            <span class="t212-pos-value">${formatCurrency(value, p.currency)}</span>
+            <span class="t212-pos-alloc">${allocPct}%</span>
+            <span class="t212-pos-ppl ${pplCls}">${pplSign}${formatCurrency(ppl, p.currency)}${pplPct !== null ? ` (${pplSign}${pplPct.toFixed(2)}%)` : ""}</span>
+          </div>
+        </div>`;
+    }).join("");
+
+  const totalPpl     = positions.reduce((s, p) => s + (p.ppl ?? (p.currentPrice - p.averagePrice) * p.quantity), 0);
+  const totalPplCls  = totalPpl >= 0 ? "pos" : "neg";
+  const totalPplSign = totalPpl >= 0 ? "+" : "";
+
+  container.innerHTML = `
+    <div class="t212-positions-table">
+      <div class="t212-pos-header">
+        <span>Positie</span><span></span>
+        <div class="t212-pos-right"><span>Waarde</span><span>Alloc</span><span>Winst/Verlies</span></div>
+      </div>
+      ${rows}
+      <div class="t212-pos-total">
+        <span style="font-weight:700">Totaal</span><span></span>
+        <div class="t212-pos-right">
+          <span style="font-weight:700">${formatCurrency(totalValue)}</span>
+          <span>100%</span>
+          <span class="${totalPplCls}" style="font-weight:700">${totalPplSign}${formatCurrency(totalPpl)}</span>
+        </div>
+      </div>
+    </div>`;
 }
+
 
 async function loadOrders() {
   const container = document.getElementById("t212-orders-list");
@@ -377,34 +405,6 @@ function initGeschiedenisTab() {
   document.getElementById("gesch-search").addEventListener("input", filterTransactions);
   document.getElementById("gesch-filter-side").addEventListener("change", filterTransactions);
   document.getElementById("gesch-filter-broker").addEventListener("change", filterTransactions);
-  document.getElementById("gesch-api-fetch-btn").addEventListener("click", fetchAllBrokersViaApi);
-
-  const csvInput = document.getElementById("gesch-csv-input");
-  const csvLabel = document.getElementById("gesch-csv-label-text");
-  const csvClear = document.getElementById("gesch-csv-clear");
-
-  csvInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    csvLabel.textContent = file.name;
-    csvClear.style.display = "inline-block";
-    const reader = new FileReader();
-    reader.onload = (ev) => parseCsv(ev.target.result);
-    reader.readAsText(file);
-  });
-
-  csvClear.addEventListener("click", async () => {
-    csvInput.value = "";
-    csvLabel.textContent = "Kies CSV bestand...";
-    csvClear.style.display = "none";
-    _allTransactions = [];
-    _allDividends = [];
-    document.getElementById("gesch-tx-list").innerHTML = "";
-    document.getElementById("gesch-div-list").innerHTML = "";
-    document.getElementById("gesch-stats").innerHTML = "";
-    document.getElementById("gesch-csv-status").innerHTML = "";
-    try { await PortfolioDB.clear(); } catch (e) { console.warn("[DB] Wissen mislukt:", e); }
-  });
 }
 
 // ── Gecombineerde fetch voor alle geconfigureerde brokers ─────
@@ -943,8 +943,12 @@ function _bindAccountButtons() {
   document.getElementById("t212-save-btn").addEventListener("click", saveApiSettings);
   document.getElementById("t212-test-btn").addEventListener("click", testConnection);
   document.getElementById("t212-clear-btn").addEventListener("click", clearApiSettings);
+  document.getElementById("t212-sync-btn").addEventListener("click", syncAllYears);
+
+  // Toon laatste sync datum bij laden
+  loadLastSyncDate();
   document.getElementById("t212-refresh-orders").addEventListener("click", loadOrders);
-  document.getElementById("t212-refresh-positions").addEventListener("click", loadPositions);
+  document.getElementById("t212-refresh-positions").addEventListener("click", showAccountInfo);
 
   // DEGIRO
   document.getElementById("degiro-save-btn").addEventListener("click", saveDegiroSettings);
@@ -957,6 +961,75 @@ function _bindAccountButtons() {
   document.getElementById("t212-env").value        = T212.getEnv();
   document.getElementById("degiro-username").value = DEGIRO.getUsername();
   // Wachtwoord niet invullen om veiligheidsredenen
+}
+
+// ── T212 sync ─────────────────────────────────────────────────
+
+async function loadLastSyncDate() {
+  const el = document.getElementById("t212-last-sync");
+  if (!el) return;
+  try {
+    const res = await fetch("/proxy/user/csv/sync-status", {
+      headers: { "X-Auth-Token": Auth.getToken() },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.last_sync) {
+      el.textContent = "Laatste sync: " + new Date(data.last_sync).toLocaleString("nl-NL");
+    }
+  } catch (_) {}
+}
+
+async function syncAllYears() {
+  const btn    = document.getElementById("t212-sync-btn");
+  const status = document.getElementById("t212-status");
+  if (!T212.isConfigured()) {
+    showStatus("Sla eerst een API-sleutel op.", "err");
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "⏳";
+  showStatus("Alle jaren worden opnieuw gesynchroniseerd op de achtergrond...", "ok");
+  try {
+    await fetch("/proxy/user/csv/full", {
+      method: "POST",
+      headers: { "X-Auth-Token": Auth.getToken() },
+    });
+    // Poll elke 5s of de sync klaar is (max 10 min)
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      const res  = await fetch("/proxy/user/csv/sync-status", {
+        headers: { "X-Auth-Token": Auth.getToken() },
+      }).catch(() => null);
+      if (res && res.ok) {
+        const data = await res.json();
+        if (data.last_sync) {
+          const ts = new Date(data.last_sync);
+          // Klaar als de sync datum binnen de laatste 30 seconden valt
+          if (Date.now() - ts.getTime() < 30000 || attempts > 10) {
+            clearInterval(poll);
+            btn.disabled = false;
+            btn.textContent = "↻";
+            document.getElementById("t212-last-sync").textContent =
+              "Laatste sync: " + ts.toLocaleString("nl-NL");
+            showStatus("Synchronisatie voltooid.", "ok");
+            return;
+          }
+        }
+      }
+      if (attempts >= 120) { // 10 minuten
+        clearInterval(poll);
+        btn.disabled = false;
+        btn.textContent = "↻";
+        showStatus("Synchronisatie gestart — duurt even op de achtergrond.", "ok");
+      }
+    }, 5000);
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "↻";
+    showStatus("Sync fout: " + e.message, "err");
+  }
 }
 
 // ── Helper: valuta opmaak ─────────────────────────────────────
