@@ -379,6 +379,8 @@ let _allTransactions  = [];
 let _allDividends     = [];
 let _txPageSize       = 25;
 let _txShown          = 0;
+let _txSortKey        = "date";
+let _txSortDir        = -1; // -1 = desc, 1 = asc
 let _geschTabInited   = false;
 
 async function _loadFromDb() {
@@ -782,12 +784,39 @@ function getFilteredTransactions() {
   const search = document.getElementById("gesch-search")?.value.trim().toLowerCase() || "";
   const side   = document.getElementById("gesch-filter-side")?.value || "all";
   const broker = document.getElementById("gesch-filter-broker")?.value || "all";
-  return _allTransactions.filter(o => {
+  const rows = _allTransactions.filter(o => {
     if (side !== "all" && o.side !== side) return false;
     if (broker !== "all" && o.broker !== broker) return false;
     if (search && !o.ticker?.toLowerCase().includes(search) && !o.name?.toLowerCase().includes(search)) return false;
     return true;
   });
+
+  const k = _txSortKey;
+  const d = _txSortDir;
+  rows.sort((a, b) => {
+    let av, bv;
+    if (k === "date")   { av = a.dateModified || ""; bv = b.dateModified || ""; }
+    else if (k === "name")  { av = (a.name || a.ticker || "").toLowerCase(); bv = (b.name || b.ticker || "").toLowerCase(); }
+    else if (k === "type")  { av = a.side || ""; bv = b.side || ""; }
+    else if (k === "qty")   { av = a.filledQuantity ?? 0; bv = b.filledQuantity ?? 0; }
+    else if (k === "price") { av = a.fillPrice ?? 0; bv = b.fillPrice ?? 0; }
+    else if (k === "total") { av = Math.abs(a.total) || 0; bv = Math.abs(b.total) || 0; }
+    else if (k === "broker"){ av = (a.broker || "").toLowerCase(); bv = (b.broker || "").toLowerCase(); }
+    if (av < bv) return -d;
+    if (av > bv) return d;
+    return 0;
+  });
+  return rows;
+}
+
+function _setTxSort(key) {
+  if (_txSortKey === key) {
+    _txSortDir = -_txSortDir;
+  } else {
+    _txSortKey = key;
+    _txSortDir = key === "date" ? -1 : 1;
+  }
+  filterTransactions();
 }
 
 function renderMoreTransactions() {
@@ -806,16 +835,25 @@ function renderMoreTransactions() {
 
   // Header (alleen eerste keer)
   if (_txShown === 0) {
+    const sortArrow = (key, align) => {
+      const active = _txSortKey === key;
+      const arrow  = active ? (_txSortDir === 1 ? " ▲" : " ▼") : " ⇅";
+      return `<span class="gesch-sort-col${active ? " gesch-sort-active" : ""}${align ? " right" : ""}" data-sort="${key}">${{date:"Datum",name:"Naam",type:"Type",qty:"Aantal",price:"Prijs",total:"Totaal",broker:"Broker"}[key]}${arrow}</span>`;
+    };
     list.innerHTML = `
-      <div class="gesch-tx-header gesch-tx-header--broker">
-        <span>Datum</span>
-        <span>Naam</span>
-        <span>Type</span>
-        <span class="right">Aantal</span>
-        <span class="right">Prijs</span>
-        <span class="right">Totaal</span>
-        <span>Broker</span>
+      <div class="gesch-tx-header gesch-tx-header--broker gesch-sortable-header">
+        ${sortArrow("date")}
+        ${sortArrow("name")}
+        ${sortArrow("type")}
+        ${sortArrow("qty", true)}
+        ${sortArrow("price", true)}
+        ${sortArrow("total", true)}
+        ${sortArrow("broker")}
       </div>`;
+    list.querySelector(".gesch-sortable-header").addEventListener("click", e => {
+      const col = e.target.closest("[data-sort]");
+      if (col) _setTxSort(col.dataset.sort);
+    });
   }
 
   for (const o of slice) {

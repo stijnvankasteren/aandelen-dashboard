@@ -1021,6 +1021,29 @@ if __name__ == "__main__":
 
     server = HTTPServer(("0.0.0.0", PORT), ProxyHandler)
     print(f"Portfolio proxy draait op http://0.0.0.0:{PORT}")
+
+    # Ververs posities bij opstarten als er nog geen cache is
+    def _startup_positions_refresh():
+        time.sleep(3)  # wacht tot proxy volledig gestart is
+        with get_db() as conn:
+            any_cache = conn.execute(
+                "SELECT 1 FROM settings WHERE key = 'positions_cache' LIMIT 1"
+            ).fetchone()
+        if any_cache:
+            print("[start] Positie-cache aanwezig, refresh overgeslagen.")
+            return
+        print("[start] Geen positie-cache gevonden — posities ophalen bij opstarten...")
+        try:
+            req = urllib.request.Request(
+                f"http://localhost:{PORT}/user/positions/refresh",
+                method="POST",
+                headers={"X-Cron-Token": cron_token},
+            )
+            urllib.request.urlopen(req, timeout=10)
+        except Exception as e:
+            print(f"[start] Posities refresh fout: {e}")
+    threading.Thread(target=_startup_positions_refresh, daemon=True).start()
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:
