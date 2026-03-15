@@ -207,7 +207,17 @@
 
       <!-- Performance grafiek -->
       <div class="db-panel db-panel-perf">
-        <div class="db-panel-title">Portfolio vs S&amp;P 500 <span class="db-panel-sub">(basis 100)</span></div>
+        <div class="db-panel-title-row">
+          <div class="db-panel-title">Portfolio vs S&amp;P 500 <span class="db-panel-sub">(basis 100)</span></div>
+          <div class="chart-period-bar db-perf-period-bar">
+            <button class="period-btn" data-perf-period="1D">1D</button>
+            <button class="period-btn" data-perf-period="1W">1W</button>
+            <button class="period-btn" data-perf-period="1M">1M</button>
+            <button class="period-btn" data-perf-period="3M">3M</button>
+            <button class="period-btn" data-perf-period="1J">1J</button>
+            <button class="period-btn active" data-perf-period="MAX">MAX</button>
+          </div>
+        </div>
         <div class="db-chart-container">
           <canvas id="db-perf-canvas"></canvas>
         </div>

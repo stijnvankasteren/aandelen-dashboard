@@ -740,6 +740,23 @@ tbody td {
   border-bottom: 1px solid var(--border);
 }
 
+.db-panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.db-panel-title-row .db-panel-title {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.db-perf-period-bar {
+  padding: 0;
+}
+
 .db-panel-sub {
   font-size: 9px;
   font-weight: 400;

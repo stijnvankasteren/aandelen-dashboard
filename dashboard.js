@@ -32,6 +32,8 @@ const SECTOR_COLORS = [
 // ── State ───────────────────────────────────────────────────
 let dashboardInitialized = false;
 let dbCharts = {};
+let _dbPerfData = null;      // { labels, datasets } volledig — voor periodefiltering
+let _dbPerfPeriod = "MAX";   // actieve periode
 let portfolioData = {};   // geladen uit portfolio.json
 let fundamentalsData = {}; // geladen uit fundamentals.json
 let benchmarkPrices = null; // ^GSPC series uit prices.json
@@ -369,40 +371,9 @@ function renderPerformanceChart(tickers, weights) {
     });
   }
 
-  dbCharts.perf = new Chart(canvas, {
-    type: "line",
-    data: { labels: refDates, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      plugins: {
-        legend: {
-          labels: { color: "#8b949e", font: { size: 11 }, boxWidth: 20 }
-        },
-        tooltip: {
-          backgroundColor: "#161b22",
-          borderColor: "#30363d",
-          borderWidth: 1,
-          titleColor: "#8b949e",
-          bodyColor: "#e6edf3",
-          callbacks: {
-            label: ctx => ` ${ctx.dataset.label}: ${ctx.raw?.toFixed(1)} (basis 100)`,
-          }
-        }
-      },
-      scales: {
-        x: {
-          ticks: { color: "#8b949e", font: { size: 10 }, maxTicksLimit: 8 },
-          grid: { color: "rgba(48,54,61,0.5)" },
-        },
-        y: {
-          ticks: { color: "#8b949e", font: { size: 10 }, callback: v => v.toFixed(0) },
-          grid: { color: "rgba(48,54,61,0.5)" },
-        }
-      }
-    }
-  });
+  _dbPerfData = { labels: refDates, datasets };
+  _drawPerfChart();
+  _setupPerfPeriodButtons();
 }
 
 // ── Performance grafiek op basis van T212 transacties ─────────
@@ -555,6 +526,45 @@ async function renderPerformanceChartFromT212(tickers) {
     }
   }
 
+  // Sla volledige (ongefilterde) data op en teken met actieve periode
+  _dbPerfData = { labels, datasets };
+  _drawPerfChart();
+  _setupPerfPeriodButtons();
+}
+
+const _PERF_PERIOD_DAYS = { "1D": 1, "1W": 7, "1M": 30, "3M": 91, "1J": 365 };
+
+function _drawPerfChart() {
+  const canvas = document.getElementById("db-perf-canvas");
+  if (!canvas || !_dbPerfData) return;
+  if (dbCharts.perf) { dbCharts.perf.destroy(); dbCharts.perf = null; }
+
+  let { labels, datasets } = _dbPerfData;
+
+  // Snijd labels/data bij op actieve periode
+  if (_dbPerfPeriod !== "MAX") {
+    const days = _PERF_PERIOD_DAYS[_dbPerfPeriod] || 9999;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    const startIdx = labels.findIndex(l => l >= cutoffStr);
+    if (startIdx > 0) {
+      labels = labels.slice(startIdx);
+      datasets = datasets.map(ds => ({
+        ...ds,
+        data: ds.data.slice(startIdx),
+      }));
+      // Herbaseer op 100 vanaf het begin van de periode
+      datasets = datasets.map(ds => {
+        const first = ds.data.find(v => v !== null);
+        if (!first) return ds;
+        return { ...ds, data: ds.data.map(v => v !== null ? (v / first) * 100 : null) };
+      });
+    }
+  }
+
+  const maxTicks = { "1D": 4, "1W": 7, "1M": 6, "3M": 6, "1J": 12, "MAX": 8 }[_dbPerfPeriod] || 8;
+
   dbCharts.perf = new Chart(canvas, {
     type: "line",
     data: { labels, datasets },
@@ -577,7 +587,7 @@ async function renderPerformanceChartFromT212(tickers) {
       },
       scales: {
         x: {
-          ticks: { color: "#8b949e", font: { size: 10 }, maxTicksLimit: 8 },
+          ticks: { color: "#8b949e", font: { size: 10 }, maxTicksLimit: maxTicks },
           grid: { color: "rgba(48,54,61,0.5)" },
         },
         y: {
@@ -586,6 +596,18 @@ async function renderPerformanceChartFromT212(tickers) {
         }
       }
     }
+  });
+}
+
+function _setupPerfPeriodButtons() {
+  document.querySelectorAll("[data-perf-period]").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.perfPeriod === _dbPerfPeriod);
+    btn.onclick = () => {
+      _dbPerfPeriod = btn.dataset.perfPeriod;
+      document.querySelectorAll("[data-perf-period]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      _drawPerfChart();
+    };
   });
 }
 
