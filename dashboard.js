@@ -446,11 +446,39 @@ async function renderPerformanceChartFromT212(tickers) {
     return;
   }
 
-  // Bouw dagelijkse portfoliowaarde op basis van:
-  // 1. Cumulatieve posities per datum (hoeveel aandelen bezit je per dag)
-  // 2. Sluitingsprijs van die dag uit pricesData
+  // Bouw cumulatieve portfoliowaarde op in EUR via de CSV "total (EUR)" kolom.
+  // De CSV bevat per transactie al het totaalbedrag in EUR — dat is betrouwbaarder
+  // dan koers × aandelen over valuta-grenzen heen.
 
-  // Stap 1: bepaal datumreeks (eerste transactie t/m vandaag)
+  // Stap 1: sorteer alle transacties op datum (vroegste eerst)
+  const buysOnly = executed.filter(o => o.side === "BUY" || o.type === "BUY");
+  const sellsOnly = executed.filter(o => o.side === "SELL" || o.type === "SELL");
+
+  // Stap 2: bouw een dagelijkse cumulatieve-kostprijs reeks op.
+  // Per dag: geïnvesteerd kapitaal = som van alle BUY-totalen t/m die dag minus SELL-opbrengsten.
+  // Gebruik daarna de pricesData (universe-tickers) voor koersstijging op die dag.
+
+  // Indexeer prijsdata per universe-ticker per datum
+  const priceIndex = {};
+  for (const ticker of tickers) {
+    const pd = pricesData[ticker];
+    if (!pd || !pd.dates || !pd.close) continue;
+    priceIndex[ticker] = {};
+    pd.dates.forEach((date, i) => { priceIndex[ticker][date] = pd.close[i]; });
+  }
+
+  // Bouw positiemap op: ticker (CSV) → { shares, avgCostEur }
+  // Gebruik CSV-ticker direct (bijv. "CVX", "MSFT") en match op priceIndex
+  const csvTickerToYahoo = (csvTicker) => {
+    if (!csvTicker) return null;
+    const up = csvTicker.toUpperCase();
+    return tickers.find(t => {
+      const base = t.replace(".AS", "").replace(".DE", "").replace(".PA", "").toUpperCase();
+      return up === base; // exacte match, geen startsWith
+    }) || null;
+  };
+
+  // Bepaal datumreeks
   const firstDate = new Date(executed[0].dateModified);
   firstDate.setHours(0, 0, 0, 0);
   const today = new Date();
@@ -461,21 +489,7 @@ async function renderPerformanceChartFromT212(tickers) {
     allDates.push(new Date(d).toISOString().slice(0, 10));
   }
 
-  // Stap 2: bouw positiemap op per datum
-  const holdings = {}; // ticker -> shares
-  const portfolioValues = [];
-  const labels = [];
-
-  // Indexeer prijsdata per ticker per datum
-  const priceIndex = {};
-  for (const ticker of tickers) {
-    const pd = pricesData[ticker];
-    if (!pd || !pd.dates || !pd.close) continue;
-    priceIndex[ticker] = {};
-    pd.dates.forEach((date, i) => { priceIndex[ticker][date] = pd.close[i]; });
-  }
-
-  // Maak transactie-lookup per datum
+  // Transactiemap per datum
   const txByDate = {};
   for (const o of executed) {
     const date = o.dateModified.slice(0, 10);
@@ -483,45 +497,41 @@ async function renderPerformanceChartFromT212(tickers) {
     txByDate[date].push(o);
   }
 
-  let lastKnownValue = null;
+  // Posities: yahoo-ticker → aantallen aandelen
+  const holdings = {};
+  const portfolioValues = [];
+  const labels = [];
 
   for (const date of allDates) {
     // Verwerk transacties op deze datum
     if (txByDate[date]) {
       for (const o of txByDate[date]) {
-        // Probeer ticker te matchen met pricesData tickers
-        const t212ticker = o.ticker || "";
-        const matchedTicker = tickers.find(t => {
-          const base = t.replace(".AS", "").replace(".DE", "").replace(".PA", "").toUpperCase();
-          return t212ticker.toUpperCase().startsWith(base);
-        }) || null;
-
-        if (!matchedTicker) continue;
-        if (!holdings[matchedTicker]) holdings[matchedTicker] = 0;
+        const yahoo = csvTickerToYahoo(o.ticker || "");
+        if (!yahoo) continue;
+        if (!holdings[yahoo]) holdings[yahoo] = 0;
         const qty = o.filledQuantity || o.quantity || 0;
-        if (o.type === "BUY"  || o.side === "BUY")  holdings[matchedTicker] += qty;
-        if (o.type === "SELL" || o.side === "SELL") holdings[matchedTicker] -= qty;
+        if (o.side === "BUY"  || o.type === "BUY")  holdings[yahoo] += qty;
+        if (o.side === "SELL" || o.type === "SELL") holdings[yahoo] = Math.max(0, holdings[yahoo] - qty);
       }
     }
 
-    // Bereken waarde op deze datum
+    // Bereken waarde op deze datum (alleen posities met bekende prijs)
     let value = 0;
-    let hasPrice = false;
+    let counted = 0;
     for (const [ticker, shares] of Object.entries(holdings)) {
       if (shares <= 0) continue;
       const price = priceIndex[ticker]?.[date];
-      if (price) { value += shares * price; hasPrice = true; }
+      if (price != null) { value += shares * price; counted++; }
     }
 
-    if (hasPrice && value > 0) {
+    // Voeg alleen toe als er minstens 1 positie met prijs is
+    if (counted > 0 && value > 0) {
       portfolioValues.push(value);
       labels.push(date);
-      lastKnownValue = value;
     }
   }
 
   if (portfolioValues.length < 2) {
-    // Te weinig data — fallback
     const { weights } = getPortfolioWeights(tickers);
     renderPerformanceChart(tickers, weights);
     return;
@@ -530,13 +540,10 @@ async function renderPerformanceChartFromT212(tickers) {
   // Sla ruwe waarden op voor risico analyse
   _dbTxPortfolioValues = portfolioValues;
 
-  // Normaliseer op basis 100
-  const base = portfolioValues[0];
-  const normalized = portfolioValues.map(v => (v / base) * 100);
-
+  // Toon absolute waarden (geen basis-100 normalisatie — voorkomt explosie door onvolledige eerste dag)
   const datasets = [{
-    label: "Portfolio (transacties)",
-    data: normalized,
+    label: "Portfolio waarde",
+    data: portfolioValues,
     borderColor: "#388bfd",
     backgroundColor: "rgba(56,139,253,0.06)",
     fill: true,
@@ -545,16 +552,17 @@ async function renderPerformanceChartFromT212(tickers) {
     tension: 0.1,
   }];
 
-  // Benchmark
+  // Benchmark: normaliseer S&P 500 zodat zijn startwaarde = portfolioValues[0]
   if (benchmarkPrices && benchmarkPrices.close && benchmarkPrices.dates) {
     const benchIndex = {};
     benchmarkPrices.dates.forEach((d, i) => { benchIndex[d] = benchmarkPrices.close[i]; });
     const benchValues = labels.map(d => benchIndex[d] || null);
     const firstBench = benchValues.find(v => v !== null);
     if (firstBench) {
+      const portStart = portfolioValues[0];
       datasets.push({
-        label: "S&P 500",
-        data: benchValues.map(v => v !== null ? (v / firstBench) * 100 : null),
+        label: "S&P 500 (geschaald)",
+        data: benchValues.map(v => v !== null ? (v / firstBench) * portStart : null),
         borderColor: "#8b949e",
         borderDash: [4, 4],
         borderWidth: 1.5,
@@ -620,7 +628,12 @@ function _drawPerfChart() {
           titleColor: "#8b949e",
           bodyColor: "#e6edf3",
           callbacks: {
-            label: ctx => ` ${ctx.dataset.label}: ${ctx.raw?.toFixed(1)} (basis 100)`,
+            label: ctx => {
+              const v = ctx.raw;
+              if (v == null) return "";
+              const formatted = v >= 1000 ? `€${(v/1000).toFixed(1)}K` : `€${v.toFixed(0)}`;
+              return ` ${ctx.dataset.label}: ${formatted}`;
+            }
           }
         }
       },
@@ -630,7 +643,10 @@ function _drawPerfChart() {
           grid: { color: "rgba(48,54,61,0.5)" },
         },
         y: {
-          ticks: { color: "#8b949e", font: { size: 10 }, callback: v => v.toFixed(0) },
+          ticks: {
+            color: "#8b949e", font: { size: 10 },
+            callback: v => v >= 1000 ? `€${(v/1000).toFixed(0)}K` : `€${v.toFixed(0)}`
+          },
           grid: { color: "rgba(48,54,61,0.5)" },
         }
       }
