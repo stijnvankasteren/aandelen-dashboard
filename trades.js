@@ -57,13 +57,13 @@ function initTradesTab() {
 
 function _buildTradesRows() {
   const isInsider = _tradesSubtab === "insider";
-  const source    = isInsider ? (window.insiderData || {}) : (window.congressData || {});
+  const source    = isInsider ? (insiderData || {}) : (congressData || {});
 
   const rows = [];
   for (const [ticker, data] of Object.entries(source)) {
     if (ticker.startsWith("_")) continue;
 
-    const rankEntry = (window.allRankings || []).find(r => r.ticker === ticker);
+    const rankEntry = (allRankings || []).find(r => r.ticker === ticker);
     const name  = rankEntry?.name  || ticker;
     const index = rankEntry?.index || "—";
 
@@ -112,7 +112,7 @@ function _renderTradesTable() {
   const tbody   = document.getElementById(tbodyId);
 
   if (rows.length === 0) {
-    const msg = Object.keys(isInsider ? (window.insiderData || {}) : (window.congressData || {})).length <= 1
+    const msg = Object.keys(isInsider ? (insiderData || {}) : (congressData || {})).length <= 1
       ? "Geen data beschikbaar. Vernieuw de data eerst."
       : "Geen trades gevonden.";
     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">${msg}</td></tr>`;
