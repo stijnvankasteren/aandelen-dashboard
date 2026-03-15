@@ -1,13 +1,3 @@
 {
-  "_comment": "Pas dit aan met jouw eigen holdings. Voeg per ticker het aantal aandelen toe en optioneel de gemiddelde aankoopprijs.",
-  "holdings": {
-    "ASML.AS":  { "shares": 5,   "avg_cost": 750.00 },
-    "HEIA.AS":  { "shares": 20,  "avg_cost": 72.00  },
-    "ADYEN.AS": { "shares": 3,   "avg_cost": 1400.00 },
-    "AMGN":     { "shares": 8,   "avg_cost": 310.00 },
-    "MSFT":     { "shares": 10,  "avg_cost": 380.00 },
-    "NVDA":     { "shares": 15,  "avg_cost": 120.00 },
-    "AAPL":     { "shares": 12,  "avg_cost": 175.00 },
-    "JPM":      { "shares": 6,   "avg_cost": 190.00 }
-  }
+  "holdings": {}
 }

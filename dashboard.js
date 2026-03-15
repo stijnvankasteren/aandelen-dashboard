@@ -4,6 +4,23 @@
      allRankings, pricesData, newsData
    ───────────────────────────────────────────────────────── */
 
+// ── T212 ticker → Yahoo ticker ───────────────────────────────
+function t212TickerToYahoo(t212Ticker) {
+  if (!t212Ticker) return t212Ticker;
+  const suffixMap = {
+    "_AMS_EQ":  ".AS",
+    "_XETR_EQ": ".DE",
+    "_EPA_EQ":  ".PA",
+    "_US_EQ":   "",
+  };
+  for (const [t212suffix, yahooSuffix] of Object.entries(suffixMap)) {
+    if (t212Ticker.endsWith(t212suffix)) {
+      return t212Ticker.slice(0, -t212suffix.length) + yahooSuffix;
+    }
+  }
+  return t212Ticker;
+}
+
 // ── Constanten ──────────────────────────────────────────────
 const RISK_FREE_RATE = 0.045; // 4.5% jaarlijks risicovrij
 const SECTOR_COLORS = [
@@ -165,17 +182,53 @@ function colorForCorr(v) {
 async function initDashboard() {
   if (dashboardInitialized) return;
 
-  // Laad portfolio.json
+  // Laad fundamentals.json
   try {
-    const [portRes, fundRes] = await Promise.all([
-      fetch("data/portfolio.json"),
-      fetch("data/fundamentals.json"),
-    ]);
-    portfolioData = portRes.ok ? await portRes.json() : { holdings: {} };
+    const fundRes = await fetch("data/fundamentals.json");
     fundamentalsData = fundRes.ok ? await fundRes.json() : {};
   } catch (e) {
-    portfolioData = { holdings: {} };
     fundamentalsData = {};
+  }
+
+  // Laad holdings vanuit T212 live posities
+  portfolioData = { holdings: {} };
+  if (typeof T212 !== "undefined" && T212.isConfigured()) {
+    try {
+      const positions = await T212.getPositions();
+      if (positions && positions.length > 0) {
+        for (const p of positions) {
+          if (!p.ticker || p.quantity <= 0) continue;
+          // Vertaal T212 ticker naar Yahoo ticker (omgekeerde van resolveT212Ticker)
+          const yahooTicker = t212TickerToYahoo(p.ticker);
+          // Zoek of deze ticker in allRankings voorkomt
+          const known = allRankings.find(r => r.ticker === yahooTicker);
+          if (!known) continue;
+          portfolioData.holdings[yahooTicker] = {
+            shares: p.quantity,
+            avg_cost: p.averagePrice || null,
+          };
+        }
+      }
+    } catch (e) {
+      // T212 niet bereikbaar — holdings blijven leeg
+    }
+  }
+
+  // Fallback: bereken avg_cost uit transactiegeschiedenis als T212 geen averagePrice geeft
+  if (typeof _allTransactions !== "undefined" && _allTransactions.length > 0) {
+    for (const ticker of Object.keys(portfolioData.holdings)) {
+      if (portfolioData.holdings[ticker].avg_cost) continue;
+      const t212Ticker = typeof resolveT212Ticker === "function" ? resolveT212Ticker(ticker) : ticker;
+      const buys = _allTransactions.filter(tx =>
+        (tx.side === "BUY" || tx.type === "BUY") &&
+        (tx.ticker === ticker || tx.ticker === t212Ticker)
+      );
+      if (buys.length > 0) {
+        const totalShares = buys.reduce((s, tx) => s + (tx.filledQuantity || tx.quantity || 0), 0);
+        const totalCost = buys.reduce((s, tx) => s + (tx.fillPrice || tx.price || 0) * (tx.filledQuantity || tx.quantity || 0), 0);
+        if (totalShares > 0) portfolioData.holdings[ticker].avg_cost = totalCost / totalShares;
+      }
+    }
   }
 
   // Haal ^GSPC benchmark op uit prices.json als die er is
@@ -966,6 +1019,7 @@ function setupDashboardTab() {
         mainContent.classList.remove("hidden");
       } else if (tab === "dashboard") {
         dashContent.classList.remove("hidden");
+        dashboardInitialized = false;
         initDashboard();
       }
       // "account" en "geschiedenis" worden afgehandeld door account.js
