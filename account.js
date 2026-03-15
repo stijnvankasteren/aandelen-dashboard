@@ -980,9 +980,28 @@ async function loadLastSyncDate() {
   } catch (_) {}
 }
 
+async function _importCsvFromProxy() {
+  const res = await fetch("/proxy/user/csv", {
+    headers: { "X-Auth-Token": Auth.getToken() },
+  });
+  if (!res.ok) return;
+  const csvText = await res.text();
+  if (!csvText.trim()) return;
+
+  // Reset en herlaad vanuit de volledige CSV
+  _allTransactions = [];
+  _allDividends    = [];
+  parseCsvAppend(csvText);
+
+  _allTransactions.sort((a, b) => new Date(b.dateModified) - new Date(a.dateModified));
+  _allDividends.sort((a, b)    => new Date(b.date)         - new Date(a.date));
+
+  await Auth.saveTransactions(_allTransactions);
+  await Auth.saveDividends(_allDividends);
+}
+
 async function syncAllYears() {
-  const btn    = document.getElementById("t212-sync-btn");
-  const status = document.getElementById("t212-status");
+  const btn = document.getElementById("t212-sync-btn");
   if (!T212.isConfigured()) {
     showStatus("Sla eerst een API-sleutel op.", "err");
     return;
@@ -995,34 +1014,35 @@ async function syncAllYears() {
       method: "POST",
       headers: { "X-Auth-Token": Auth.getToken() },
     });
-    // Poll elke 5s of de sync klaar is (max 10 min)
-    let attempts = 0;
+
+    // Poll elke 5s tot de sync klaar is (max 15 min)
+    const startedAt = Date.now();
     const poll = setInterval(async () => {
-      attempts++;
-      const res  = await fetch("/proxy/user/csv/sync-status", {
+      const res = await fetch("/proxy/user/csv/sync-status", {
         headers: { "X-Auth-Token": Auth.getToken() },
       }).catch(() => null);
-      if (res && res.ok) {
-        const data = await res.json();
-        if (data.last_sync) {
-          const ts = new Date(data.last_sync);
-          // Klaar als de sync datum binnen de laatste 30 seconden valt
-          if (Date.now() - ts.getTime() < 30000 || attempts > 10) {
-            clearInterval(poll);
-            btn.disabled = false;
-            btn.textContent = "↻";
-            document.getElementById("t212-last-sync").textContent =
-              "Laatste sync: " + ts.toLocaleString("nl-NL");
-            showStatus("Synchronisatie voltooid.", "ok");
-            return;
-          }
-        }
-      }
-      if (attempts >= 120) { // 10 minuten
+      if (!res || !res.ok) return;
+      const data = await res.json();
+      if (!data.last_sync) return;
+
+      const ts = new Date(data.last_sync);
+      const syncDoneAfterStart = ts.getTime() > startedAt;
+      const timeout = Date.now() - startedAt > 15 * 60 * 1000;
+
+      if (syncDoneAfterStart || timeout) {
         clearInterval(poll);
         btn.disabled = false;
         btn.textContent = "↻";
-        showStatus("Synchronisatie gestart — duurt even op de achtergrond.", "ok");
+        document.getElementById("t212-last-sync").textContent =
+          "Laatste sync: " + ts.toLocaleString("nl-NL");
+
+        if (syncDoneAfterStart) {
+          showStatus("Synchronisatie voltooid. Transacties importeren...", "ok");
+          await _importCsvFromProxy();
+          showStatus(`Gereed — ${_allTransactions.length} transacties, ${_allDividends.length} dividenden.`, "ok");
+        } else {
+          showStatus("Synchronisatie loopt nog op de achtergrond.", "ok");
+        }
       }
     }, 5000);
   } catch (e) {
