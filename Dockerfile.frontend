@@ -11,6 +11,7 @@ COPY degiro.js /usr/share/nginx/html/
 COPY db.js /usr/share/nginx/html/
 COPY auth.js /usr/share/nginx/html/
 COPY data/ /usr/share/nginx/html/data/
+COPY favicon.ico /usr/share/nginx/html/
 
 # Nginx config: stuur /proxy/* door naar de Python proxy
 COPY nginx.conf /etc/nginx/conf.d/default.conf
