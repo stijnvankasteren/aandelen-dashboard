@@ -711,7 +711,7 @@ tbody td {
 /* ── Hoofd grid ───────────────────────────────────────────── */
 .db-grid {
   display: grid;
-  grid-template-columns: 260px 1fr 220px;
+  grid-template-columns: 1fr 2fr 1fr;
   grid-template-rows: auto;
   gap: 12px;
   padding: 16px 20px;
@@ -769,33 +769,33 @@ tbody td {
 /* Grid plaatsing van panels */
 .db-panel-holdings {
   grid-column: 1;
-  grid-row: 1 / span 3;
+  grid-row: 1 / span 2;
 }
 .db-panel-perf {
   grid-column: 2;
-  grid-row: 1;
+  grid-row: 1 / span 2;
 }
 .db-panel-risk {
   grid-column: 3;
   grid-row: 1 / span 2;
 }
-.db-panel-sector {
-  grid-column: 2;
-  grid-row: 2;
+.db-panel-news {
+  grid-column: 1;
+  grid-row: 3;
+  overflow-y: auto;
+  max-height: 340px;
 }
 .db-panel-vol {
   grid-column: 2;
   grid-row: 3;
 }
-.db-panel-earnings {
+.db-panel-sector {
   grid-column: 3;
   grid-row: 3;
 }
-.db-panel-news {
-  grid-column: 1;
+.db-panel-earnings {
+  grid-column: 3;
   grid-row: 4;
-  overflow-y: auto;
-  max-height: 320px;
 }
 #db-news-list .news-item {
   padding: 8px 0;
@@ -829,15 +829,15 @@ tbody td {
 #db-news-list .news-title:hover { color: var(--blue-lt); }
 .db-panel-corr {
   grid-column: 1;
-  grid-row: 5;
+  grid-row: 4;
 }
 .db-panel-suggest {
   grid-column: 2;
   grid-row: 4;
 }
 .db-panel-movers {
-  grid-column: 3;
-  grid-row: 4;
+  grid-column: 2;
+  grid-row: 5;
 }
 
 /* Responsive: 2 kolommen */
@@ -846,11 +846,11 @@ tbody td {
   .db-panel-holdings { grid-column: 1; grid-row: auto; }
   .db-panel-perf     { grid-column: 2; grid-row: auto; }
   .db-panel-risk     { grid-column: 1 / span 2; grid-row: auto; }
-  .db-panel-sector   { grid-column: 1; grid-row: auto; }
+  .db-panel-news     { grid-column: 1; grid-row: auto; max-height: 260px; }
   .db-panel-vol      { grid-column: 2; grid-row: auto; }
-  .db-panel-earnings { grid-column: 1; grid-row: auto; }
-  .db-panel-news     { grid-column: 1 / span 2; grid-row: auto; max-height: 260px; }
-  .db-panel-corr     { grid-column: 2; grid-row: auto; }
+  .db-panel-sector   { grid-column: 1; grid-row: auto; }
+  .db-panel-earnings { grid-column: 2; grid-row: auto; }
+  .db-panel-corr     { grid-column: 1 / span 2; grid-row: auto; }
   .db-panel-suggest  { grid-column: 1; grid-row: auto; }
   .db-panel-movers   { grid-column: 2; grid-row: auto; }
 }
