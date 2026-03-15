@@ -473,9 +473,6 @@ async function fetchCsvViaApi() {
     const endYear = new Date().getFullYear();
 
     // Stap 2: bouw jaarperiodes op — nieuwste jaar eerst
-    // TODO: tijdelijk beperkt tot 2025-2026 voor testdoeleinden — verwijder deze regel voor productie
-    startYear = Math.max(startYear, 2025);
-
     const periods = [];
     for (let y = endYear; y >= startYear; y--) {
       periods.push({
