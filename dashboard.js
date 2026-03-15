@@ -549,9 +549,13 @@ async function renderPerformanceChartFromT212(tickers) {
   // Sla ruwe waarden op voor risico analyse
   _dbTxPortfolioValues = portfolioValues;
 
+  // Normaliseer portfolio op basis 100 voor vergelijking met S&P 500
+  const portBase = portfolioValues[0];
+  const portNorm = portfolioValues.map(v => (v / portBase) * 100);
+
   const datasets = [{
-    label: "Portfolio waarde",
-    data: portfolioValues,
+    label: "Portfolio",
+    data: portNorm,
     borderColor: "#388bfd",
     backgroundColor: "rgba(56,139,253,0.06)",
     fill: true,
@@ -560,17 +564,16 @@ async function renderPerformanceChartFromT212(tickers) {
     tension: 0.1,
   }];
 
-  // Benchmark: schaal S&P 500 zodat startwaarde = eerste portfoliowaarde
+  // Benchmark: normaliseer S&P 500 op dezelfde basis 100 vanaf dezelfde startdatum
   if (benchmarkPrices && benchmarkPrices.close && benchmarkPrices.dates) {
     const benchIndex = {};
     benchmarkPrices.dates.forEach((d, i) => { benchIndex[d] = benchmarkPrices.close[i]; });
     const benchValues = labels.map(d => benchIndex[d] || null);
     const firstBench = benchValues.find(v => v !== null);
     if (firstBench) {
-      const portStart = portfolioValues[0];
       datasets.push({
-        label: "S&P 500 (geschaald)",
-        data: benchValues.map(v => v !== null ? (v / firstBench) * portStart : null),
+        label: "S&P 500",
+        data: benchValues.map(v => v !== null ? (v / firstBench) * 100 : null),
         borderColor: "#8b949e",
         borderDash: [4, 4],
         borderWidth: 1.5,
@@ -639,8 +642,9 @@ function _drawPerfChart() {
             label: ctx => {
               const v = ctx.raw;
               if (v == null) return "";
-              const formatted = v >= 1000 ? `€${(v/1000).toFixed(1)}K` : `€${v.toFixed(0)}`;
-              return ` ${ctx.dataset.label}: ${formatted}`;
+              const pct = (v - 100).toFixed(1);
+              const sign = pct >= 0 ? "+" : "";
+              return ` ${ctx.dataset.label}: ${v.toFixed(1)} (${sign}${pct}%)`;
             }
           }
         }
@@ -653,7 +657,7 @@ function _drawPerfChart() {
         y: {
           ticks: {
             color: "#8b949e", font: { size: 10 },
-            callback: v => v >= 1000 ? `€${(v/1000).toFixed(0)}K` : `€${v.toFixed(0)}`
+            callback: v => v.toFixed(0),
           },
           grid: { color: "rgba(48,54,61,0.5)" },
         }
