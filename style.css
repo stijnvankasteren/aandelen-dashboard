@@ -1700,3 +1700,22 @@ tbody td {
 }
 
 .header-logout:hover { color: var(--text); border-color: var(--text); }
+
+/* ── 2FA backup codes grid ────────────────────────────────── */
+.totp-codes-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.totp-code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--text);
+  text-align: center;
+}

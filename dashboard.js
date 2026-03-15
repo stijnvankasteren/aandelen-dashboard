@@ -1036,6 +1036,7 @@ function setupDashboardTab() {
         }).catch(() => {});
       } else if (tab === "account") {
         if (accountContent) accountContent.classList.remove("hidden");
+        if (typeof totpLoadStatus === "function") totpLoadStatus();
         // Herlaad API-instellingen vanuit server-DB
         Auth.loadSettings().then(settings => {
           if (settings.t212_key) {

@@ -13,10 +13,18 @@ import hashlib
 import secrets
 import sqlite3
 import os
+import io
 import urllib.request
 import urllib.error
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+try:
+    import pyotp
+    import qrcode
+    TOTP_AVAILABLE = True
+except ImportError:
+    TOTP_AVAILABLE = False
 
 _refresh_lock   = threading.Lock()
 _refresh_running = False
@@ -77,6 +85,19 @@ def init_db():
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id     INTEGER NOT NULL,
                 data        TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+            CREATE TABLE IF NOT EXISTS reset_tokens (
+                token      TEXT PRIMARY KEY,
+                user_id    INTEGER NOT NULL,
+                expires_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+            CREATE TABLE IF NOT EXISTS totp (
+                user_id      INTEGER PRIMARY KEY,
+                secret       TEXT NOT NULL,
+                confirmed    INTEGER DEFAULT 0,
+                backup_codes TEXT NOT NULL DEFAULT '[]',
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
         """)
@@ -162,8 +183,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
     def _handle_login(self):
         body = json.loads(self._read_body())
-        username = (body.get("username") or "").strip()
-        password = body.get("password") or ""
+        username   = (body.get("username") or "").strip()
+        password   = body.get("password") or ""
+        totp_code  = (body.get("totpCode") or "").strip()
+        backup_code = (body.get("backupCode") or "").strip()
         with get_db() as conn:
             row = conn.execute(
                 "SELECT id, username FROM users WHERE username = ? AND password_hash = ?",
@@ -172,6 +195,32 @@ class ProxyHandler(BaseHTTPRequestHandler):
         if not row:
             self._json(401, {"error": "Onjuiste gebruikersnaam of wachtwoord."})
             return
+        # Controleer of 2FA actief is
+        with get_db() as conn:
+            totp_row = conn.execute(
+                "SELECT secret, confirmed, backup_codes FROM totp WHERE user_id = ? AND confirmed = 1",
+                (row["id"],)
+            ).fetchone()
+        if totp_row:
+            if not totp_code and not backup_code:
+                self._json(200, {"totp_required": True})
+                return
+            if backup_code:
+                codes = json.loads(totp_row["backup_codes"])
+                if backup_code not in codes:
+                    self._json(401, {"error": "Ongeldige backup code."})
+                    return
+                # Verwijder gebruikte backup code
+                codes.remove(backup_code)
+                with _db_lock:
+                    with get_db() as conn:
+                        conn.execute("UPDATE totp SET backup_codes = ? WHERE user_id = ?",
+                                     (json.dumps(codes), row["id"]))
+            else:
+                totp = pyotp.TOTP(totp_row["secret"])
+                if not totp.verify(totp_code, valid_window=1):
+                    self._json(401, {"error": "Ongeldige authenticator code."})
+                    return
         token = create_session(row["id"])
         self._json(200, {"token": token, "username": row["username"], "userId": row["id"]})
 
@@ -183,22 +232,144 @@ class ProxyHandler(BaseHTTPRequestHandler):
                     conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
         self._json(200, {"status": "ok"})
 
-    def _handle_reset_password(self):
-        """Wachtwoord wijzigen — vereist huidig wachtwoord of admin-token."""
+    def _handle_totp_setup(self):
+        """Genereer een nieuw TOTP-geheim en stuur QR-code terug als data-URL."""
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."}); return
+        if not TOTP_AVAILABLE:
+            self._json(500, {"error": "pyotp/qrcode niet geïnstalleerd."}); return
+        secret = pyotp.random_base32()
+        totp   = pyotp.TOTP(secret)
+        uri    = totp.provisioning_uri(name=user["username"], issuer_name="Portfolio Analyser")
+        # Genereer QR als PNG data-URL
+        img    = qrcode.make(uri)
+        buf    = io.BytesIO()
+        img.save(buf, format="PNG")
+        qr_b64 = base64.b64encode(buf.getvalue()).decode()
+        # Sla geheim op (nog niet bevestigd)
+        with _db_lock:
+            with get_db() as conn:
+                conn.execute(
+                    "INSERT INTO totp (user_id, secret, confirmed, backup_codes) VALUES (?, ?, 0, '[]') "
+                    "ON CONFLICT(user_id) DO UPDATE SET secret = excluded.secret, confirmed = 0",
+                    (user["id"], secret)
+                )
+        self._json(200, {"qr": f"data:image/png;base64,{qr_b64}", "secret": secret})
+
+    def _handle_totp_confirm(self):
+        """Bevestig 2FA met een code uit de authenticator-app en genereer backup codes."""
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."}); return
         body = json.loads(self._read_body())
+        code = (body.get("code") or "").strip()
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT secret FROM totp WHERE user_id = ? AND confirmed = 0", (user["id"],)
+            ).fetchone()
+        if not row:
+            self._json(400, {"error": "Geen 2FA setup gevonden. Start opnieuw."}); return
+        totp = pyotp.TOTP(row["secret"])
+        if not totp.verify(code, valid_window=1):
+            self._json(401, {"error": "Ongeldige code. Probeer opnieuw."}); return
+        # Genereer 8 backup codes
+        backup_codes = [secrets.token_hex(4) for _ in range(8)]
+        with _db_lock:
+            with get_db() as conn:
+                conn.execute(
+                    "UPDATE totp SET confirmed = 1, backup_codes = ? WHERE user_id = ?",
+                    (json.dumps(backup_codes), user["id"])
+                )
+        self._json(200, {"status": "ok", "backupCodes": backup_codes})
+
+    def _handle_totp_disable(self):
+        """Schakel 2FA uit (vereist wachtwoord)."""
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."}); return
+        body     = json.loads(self._read_body())
+        password = body.get("password") or ""
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT id FROM users WHERE id = ? AND password_hash = ?",
+                (user["id"], hash_password(password))
+            ).fetchone()
+        if not row:
+            self._json(401, {"error": "Wachtwoord klopt niet."}); return
+        with _db_lock:
+            with get_db() as conn:
+                conn.execute("DELETE FROM totp WHERE user_id = ?", (user["id"],))
+        self._json(200, {"status": "ok"})
+
+    def _handle_totp_status(self):
+        """Geeft terug of 2FA actief is voor de ingelogde gebruiker."""
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."}); return
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT confirmed FROM totp WHERE user_id = ?", (user["id"],)
+            ).fetchone()
+        self._json(200, {"enabled": bool(row and row["confirmed"])})
+
+    def _handle_request_reset(self):
+        """Stap 1: genereer een reset-code en log hem in de proxy-output."""
+        body     = json.loads(self._read_body())
+        username = (body.get("username") or "").strip()
+        if not username:
+            self._json(400, {"error": "Gebruikersnaam is verplicht."}); return
+        with get_db() as conn:
+            row = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if not row:
+            # Geef geen info prijs of de gebruiker bestaat
+            self._json(200, {"status": "ok"}); return
+        token   = secrets.token_hex(4)   # bijv. "4h8f9n2h"
+        expires = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() + 600))  # 10 min geldig
+        with _db_lock:
+            with get_db() as conn:
+                conn.execute("DELETE FROM reset_tokens WHERE user_id = ?", (row["id"],))
+                conn.execute("INSERT INTO reset_tokens (token, user_id, expires_at) VALUES (?, ?, ?)",
+                             (token, row["id"], expires))
+        print(f"\n{'='*40}")
+        print(f"  WACHTWOORD RESET CODE voor '{username}'")
+        print(f"  Code: {token}  (geldig 10 minuten)")
+        print(f"{'='*40}\n", flush=True)
+        self._json(200, {"status": "ok"})
+
+    def _handle_reset_password(self):
+        """Wachtwoord wijzigen — vereist huidig wachtwoord of reset-code."""
+        body         = json.loads(self._read_body())
         username     = (body.get("username") or "").strip()
         old_password = body.get("oldPassword") or ""
         new_password = body.get("newPassword") or ""
-        admin_key    = body.get("adminKey") or ""
+        reset_token  = (body.get("resetToken") or "").strip()
 
         if not username or not new_password:
             self._json(400, {"error": "Gebruikersnaam en nieuw wachtwoord zijn verplicht."}); return
         if len(new_password) < 6:
             self._json(400, {"error": "Nieuw wachtwoord moet minimaal 6 tekens zijn."}); return
 
-        # Admin reset via ADMIN_KEY omgevingsvariabele
-        admin_ok = admin_key and admin_key == os.environ.get("ADMIN_KEY", "")
-        if not admin_ok:
+        with get_db() as conn:
+            user = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if not user:
+            self._json(401, {"error": "Gebruiker niet gevonden."}); return
+
+        if reset_token:
+            # Verifieer reset-code
+            now = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+            with get_db() as conn:
+                row = conn.execute(
+                    "SELECT token FROM reset_tokens WHERE token = ? AND user_id = ? AND expires_at > ?",
+                    (reset_token, user["id"], now)
+                ).fetchone()
+            if not row:
+                self._json(401, {"error": "Ongeldige of verlopen code."}); return
+            # Verwijder gebruikte token
+            with _db_lock:
+                with get_db() as conn:
+                    conn.execute("DELETE FROM reset_tokens WHERE token = ?", (reset_token,))
+        else:
             # Verifieer oud wachtwoord
             with get_db() as conn:
                 row = conn.execute(
@@ -210,10 +381,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         with _db_lock:
             with get_db() as conn:
-                conn.execute(
-                    "UPDATE users SET password_hash = ? WHERE username = ?",
-                    (hash_password(new_password), username)
-                )
+                conn.execute("UPDATE users SET password_hash = ? WHERE username = ?",
+                             (hash_password(new_password), username))
         self._json(200, {"status": "ok"})
 
     def _handle_me(self):
@@ -341,7 +510,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
         elif p == "/user/transactions" and method == "POST": self._handle_transactions_post()
         elif p == "/user/dividends" and method == "GET":  self._handle_dividends_get()
         elif p == "/user/dividends" and method == "POST": self._handle_dividends_post()
-        elif p == "/auth/reset-password" and method == "POST": self._handle_reset_password()
+        elif p == "/auth/totp/setup"   and method == "POST": self._handle_totp_setup()
+    elif p == "/auth/totp/confirm" and method == "POST": self._handle_totp_confirm()
+    elif p == "/auth/totp/disable" and method == "POST": self._handle_totp_disable()
+    elif p == "/auth/totp/status"  and method == "GET":  self._handle_totp_status()
+    elif p == "/auth/request-reset"  and method == "POST": self._handle_request_reset()
+    elif p == "/auth/reset-password" and method == "POST": self._handle_reset_password()
     elif p == "/refresh":             self._handle_refresh()
         elif self.path.startswith("/degiro"):    self._handle_degiro(method, self.path[7:])
         elif self.path.startswith("/s3download"): self._handle_s3download()
