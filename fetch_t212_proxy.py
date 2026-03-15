@@ -710,9 +710,21 @@ class ProxyHandler(BaseHTTPRequestHandler):
                     def _get(path):
                         return _t212_request("GET", path, None, api_key, api_secret, env)
 
-                    positions = _get("/equity/portfolio")
-                    if isinstance(positions, dict):
-                        positions = positions.get("items", positions)
+                    all_positions = []
+                    portfolio_path = "/equity/portfolio"
+                    while portfolio_path:
+                        page = _get(portfolio_path)
+                        if isinstance(page, dict):
+                            items = page.get("items", [])
+                            all_positions.extend(items if isinstance(items, list) else [])
+                            next_path = page.get("nextPagePath")
+                            portfolio_path = next_path if next_path else None
+                        elif isinstance(page, list):
+                            all_positions.extend(page)
+                            portfolio_path = None
+                        else:
+                            portfolio_path = None
+                    positions = all_positions
 
                     cash = _get("/equity/account/cash")
 
