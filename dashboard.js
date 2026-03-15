@@ -330,6 +330,7 @@ async function initDashboard() {
   renderCorrelationMatrix(tickers);
   renderRiskSuggestions(tickers, weights);
   renderTopMovers();
+  renderDashboardNews(tickers);
 }
 
 // ── Header bar ───────────────────────────────────────────────
@@ -1126,6 +1127,49 @@ function renderTopMovers() {
   html += `</div></div>`;
 
   container.innerHTML = html;
+}
+
+// ── Nieuws panel ─────────────────────────────────────────────
+function renderDashboardNews(tickers) {
+  const container = document.getElementById("db-news-list");
+  if (!container) return;
+  if (!newsData || typeof newsData !== "object") {
+    container.innerHTML = `<div style="color:var(--muted);padding:12px;font-size:12px">Geen nieuwsdata beschikbaar.</div>`;
+    return;
+  }
+
+  // Verzamel alle artikelen voor portfolio-tickers, met ticker-label erbij
+  const articles = [];
+  for (const ticker of tickers) {
+    const nd = newsData[ticker];
+    if (!nd || !Array.isArray(nd.articles)) continue;
+    for (const a of nd.articles) {
+      articles.push({ ...a, ticker });
+    }
+  }
+
+  if (articles.length === 0) {
+    container.innerHTML = `<div style="color:var(--muted);padding:12px;font-size:12px">Geen nieuws voor huidige portfolio.</div>`;
+    return;
+  }
+
+  // Sorteer op datum (nieuwste eerst)
+  articles.sort((a, b) => new Date(b.published || 0) - new Date(a.published || 0));
+
+  container.innerHTML = articles.slice(0, 20).map(a => {
+    const sentClass = a.sentiment === "positive" ? "pos" : a.sentiment === "negative" ? "neg" : "neutral";
+    const sentLabel = a.sentiment === "positive" ? "Positief" : a.sentiment === "negative" ? "Negatief" : "Neutraal";
+    const date = a.published ? new Date(a.published).toLocaleDateString("nl-NL", { day: "numeric", month: "short" }) : "";
+    const shortTicker = a.ticker.replace(".AS","").replace(".DE","").replace(".PA","");
+    return `<div class="news-item">
+      <div class="news-meta">
+        <span class="index-badge" style="font-size:10px">${shortTicker}</span>
+        <span class="news-sentiment ${sentClass}">${sentLabel}</span>
+        <span class="news-date">${date}</span>
+      </div>
+      <a href="${a.url || "#"}" target="_blank" rel="noopener" class="news-title">${a.title || "—"}</a>
+    </div>`;
+  }).join("");
 }
 
 // ── Tab switcher (wordt opgeroepen vanuit app.js context) ─────
