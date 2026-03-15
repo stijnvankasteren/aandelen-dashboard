@@ -40,21 +40,41 @@ let fundamentalsData = {}; // geladen uit fundamentals.json
 let benchmarkPrices = null; // ^GSPC series uit prices.json
 
 // ── Portfolio helpers ────────────────────────────────────────
+
+// Tickers die in allRankings zitten — voor analyses (volatiliteit, sector, P/E etc.)
 function getPortfolioTickers() {
   return Object.keys(portfolioData.holdings || {}).filter(t => {
-    const item = allRankings.find(r => r.ticker === t);
-    return item && item.price;
+    const h = portfolioData.holdings[t];
+    return h.in_universe && allRankings.find(r => r.ticker === t)?.price;
   });
 }
 
+// Gewichten op basis van T212 current_value als beschikbaar, anders Yahoo-prijs
 function getPortfolioWeights(tickers) {
   const values = tickers.map(t => {
+    const h = portfolioData.holdings[t];
+    if (h?.current_value) return h.current_value;
     const item = allRankings.find(r => r.ticker === t);
-    const shares = portfolioData.holdings[t]?.shares || 0;
-    return (item?.price || 0) * shares;
+    return (item?.price || 0) * (h?.shares || 0);
   });
   const total = values.reduce((a, b) => a + b, 0);
   return { weights: values.map(v => (total > 0 ? v / total : 0)), totalValue: total, values };
+}
+
+// Echte totaalwaarde van alle T212-posities (inclusief buiten universum)
+function getT212TotalValue() {
+  const holdings = portfolioData.holdings || {};
+  return Object.values(holdings).reduce((s, h) => s + (h.current_value || 0), 0);
+}
+
+// Totale inlegkosten van alle T212-posities in accountvaluta (EUR)
+// = huidige waarde - ppl = kostprijs in EUR
+function getT212TotalCost() {
+  const holdings = portfolioData.holdings || {};
+  return Object.values(holdings).reduce((s, h) => {
+    if (h.current_value != null && h.ppl != null) return s + (h.current_value - h.ppl);
+    return s;
+  }, 0);
 }
 
 // ── Wiskunde helpers ─────────────────────────────────────────
@@ -193,22 +213,33 @@ async function initDashboard() {
     fundamentalsData = {};
   }
 
-  // Laad holdings vanuit T212 live posities
-  portfolioData = { holdings: {} };
+  // Laad holdings vanuit gecachede T212 posities (zelfde bron als Account-pagina)
+  portfolioData = { holdings: {}, allPositions: [] };
   if (typeof T212 !== "undefined" && T212.isConfigured()) {
     try {
-      const positions = await T212.getPositions();
+      const cacheRes = await fetch("/proxy/user/positions", {
+        headers: { "X-Auth-Token": Auth.getToken() },
+      });
+      const cache = cacheRes.ok ? await cacheRes.json() : {};
+      const positions = cache.positions || [];
+      // Sla cash op voor totaalwaarde
+      portfolioData.cash = cache.cash || {};
       if (positions && positions.length > 0) {
+        // Sla ALLE posities op voor totaalwaarde-berekening
+        portfolioData.allPositions = positions.filter(p => p.ticker && p.quantity > 0);
         for (const p of positions) {
           if (!p.ticker || p.quantity <= 0) continue;
-          // Vertaal T212 ticker naar Yahoo ticker (omgekeerde van resolveT212Ticker)
           const yahooTicker = t212TickerToYahoo(p.ticker);
-          // Zoek of deze ticker in allRankings voorkomt
-          const known = allRankings.find(r => r.ticker === yahooTicker);
-          if (!known) continue;
+          // ppl is in accountvaluta (EUR); averagePrice * quantity + ppl = huidige waarde in EUR
+          const costEur = (p.averagePrice || 0) * p.quantity;
+          const currentValueEur = p.ppl != null ? costEur + p.ppl : null;
           portfolioData.holdings[yahooTicker] = {
             shares: p.quantity,
             avg_cost: p.averagePrice || null,
+            current_price: p.currentPrice || null,
+            current_value: currentValueEur,
+            ppl: p.ppl ?? null,
+            in_universe: !!allRankings.find(r => r.ticker === yahooTicker),
           };
         }
       }
@@ -240,11 +271,15 @@ async function initDashboard() {
   dashboardInitialized = true;
 
   const tickers = getPortfolioTickers();
-  if (tickers.length === 0) {
+  const allHoldings = Object.keys(portfolioData.holdings || {});
+  if (allHoldings.length === 0) {
     document.getElementById("db-no-holdings").classList.remove("hidden");
     document.getElementById("db-main-grid").classList.add("hidden");
     return;
   }
+  // Toon dashboard ook als er posities zijn buiten het universum
+  document.getElementById("db-no-holdings").classList.add("hidden");
+  document.getElementById("db-main-grid").classList.remove("hidden");
 
   const { weights, totalValue, values } = getPortfolioWeights(tickers);
 
@@ -266,7 +301,10 @@ async function initDashboard() {
 
 // ── Header bar ───────────────────────────────────────────────
 function renderDashboardHeader(tickers, weights, totalValue, values) {
-  // Dag verandering
+  // Echte totaalwaarde: alle T212 posities (incl. buiten universum)
+  const realTotalValue = getT212TotalValue() || totalValue;
+
+  // Dag verandering op basis van allRankings change_1d (alleen universe tickers)
   let dayChange = 0;
   for (let i = 0; i < tickers.length; i++) {
     const item = allRankings.find(r => r.ticker === tickers[i]);
@@ -274,26 +312,23 @@ function renderDashboardHeader(tickers, weights, totalValue, values) {
     const prevValue = values[i] / (1 + (item.change_1d || 0) / 100);
     dayChange += values[i] - prevValue;
   }
-  const dayChangePct = totalValue > 0 ? (dayChange / (totalValue - dayChange)) * 100 : 0;
+  // Voeg ook T212 ppl-delta toe voor posities buiten het universum (niet beschikbaar — laat weg)
+  const dayChangePct = realTotalValue > 0 ? (dayChange / (realTotalValue - dayChange)) * 100 : 0;
 
-  // Totaal rendement
-  let totalCost = 0;
-  for (const t of tickers) {
-    const h = portfolioData.holdings[t];
-    if (h?.avg_cost) totalCost += h.shares * h.avg_cost;
-  }
-  const totalReturn = totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : null;
+  // Totaal rendement: echte inlegkosten vs. echte huidige waarde
+  const realTotalCost = getT212TotalCost();
+  const totalReturn = realTotalCost > 0 ? ((realTotalValue - realTotalCost) / realTotalCost) * 100 : null;
 
-  // Sentiment
-  const avgSentiment = tickers.reduce((s, t) => {
+  // Sentiment (alleen universe tickers)
+  const avgSentiment = tickers.length > 0 ? tickers.reduce((s, t) => {
     const item = allRankings.find(r => r.ticker === t);
     return s + (item?.news_sentiment_avg || 0.5);
-  }, 0) / tickers.length;
+  }, 0) / tickers.length : 0.5;
   const sentimentLabel = avgSentiment > 0.6 ? "BULLISH" : avgSentiment < 0.4 ? "BEARISH" : "NEUTRAAL";
   const sentimentClass = avgSentiment > 0.6 ? "pos" : avgSentiment < 0.4 ? "neg" : "neutral";
 
-  document.getElementById("db-stat-value").textContent = fmtCurrency(totalValue, "USD").replace("$", "$ ");
-  document.getElementById("db-stat-daychange").innerHTML = fmtPctDB(dayChangePct) + ` <small>(${dayChange >= 0 ? "+" : ""}${fmtCurrency(Math.abs(dayChange))})</small>`;
+  document.getElementById("db-stat-value").textContent = fmtCurrency(realTotalValue, "EUR").replace("€", "€ ");
+  document.getElementById("db-stat-daychange").innerHTML = fmtPctDB(dayChangePct) + ` <small>(${dayChange >= 0 ? "+" : ""}${fmtCurrency(Math.abs(dayChange), "EUR")})</small>`;
   document.getElementById("db-stat-return").innerHTML = totalReturn !== null ? fmtPctDB(totalReturn) : "—";
   document.getElementById("db-stat-sentiment").innerHTML = `<span class="${sentimentClass}" style="font-weight:700">${sentimentLabel}</span>`;
 }
