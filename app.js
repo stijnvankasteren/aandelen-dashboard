@@ -704,4 +704,8 @@ async function loadData() {
 }
 
 // ── Start ──────────────────────────────────────────────────
-loadData();
+// authInit() toont de login overlay als de gebruiker niet ingelogd is,
+// en roept daarna authOnSuccess() aan, die loadData() triggert via de app.
+// authOnSuccess is gedefinieerd in auth.js en roept window._startApp() aan.
+window._startApp = loadData;
+authInit();

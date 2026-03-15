@@ -9,6 +9,7 @@ COPY dashboard.js /usr/share/nginx/html/
 COPY trading212.js /usr/share/nginx/html/
 COPY degiro.js /usr/share/nginx/html/
 COPY db.js /usr/share/nginx/html/
+COPY auth.js /usr/share/nginx/html/
 COPY data/ /usr/share/nginx/html/data/
 
 # Nginx config: stuur /proxy/* door naar de Python proxy

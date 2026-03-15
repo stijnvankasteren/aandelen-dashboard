@@ -9,6 +9,12 @@
 </head>
 <body>
 
+<!-- ── Auth overlay ────────────────────────────────────────── -->
+<div id="auth-overlay" class="auth-overlay hidden"></div>
+
+<!-- ── App ─────────────────────────────────────────────────── -->
+<div id="app-root" class="hidden">
+
   <!-- ── Header ──────────────────────────────────────────── -->
   <header>
     <div class="header-left">
@@ -24,6 +30,8 @@
     <div class="header-right">
       <span id="last-updated"></span>
       <a href="#" id="refresh-btn" onclick="triggerRefresh(); return false;">Vernieuwen</a>
+      <span id="header-username" class="header-username"></span>
+      <a href="#" class="header-logout" onclick="authLogout(); return false;">Uitloggen</a>
     </div>
   </header>
 
@@ -419,6 +427,22 @@
       </div>
 
       <div class="account-section">
+        <h2 class="account-title">Wachtwoord wijzigen</h2>
+        <div class="account-form">
+          <label class="account-label" for="pw-old">Huidig wachtwoord</label>
+          <input id="pw-old" type="password" class="account-input" placeholder="Huidig wachtwoord...">
+          <label class="account-label" for="pw-new">Nieuw wachtwoord</label>
+          <input id="pw-new" type="password" class="account-input" placeholder="Nieuw wachtwoord (min. 6 tekens)...">
+          <label class="account-label" for="pw-new2">Herhaal nieuw wachtwoord</label>
+          <input id="pw-new2" type="password" class="account-input" placeholder="Herhaal nieuw wachtwoord...">
+          <div class="account-actions">
+            <button class="btn-primary" onclick="changePassword()">Wachtwoord wijzigen</button>
+          </div>
+          <div id="pw-status" class="account-status hidden"></div>
+        </div>
+      </div>
+
+      <div class="account-section">
         <h2 class="account-title">Hoe werkt het?</h2>
         <ol class="account-howto">
           <li>Genereer een API-sleutel in je Trading 212 account (Instellingen → API).</li>
@@ -480,11 +504,14 @@
     </div>
   </div>
 
+</div><!-- /#app-root -->
+
   <script src="trading212.js"></script>
   <script src="degiro.js"></script>
   <script src="db.js"></script>
   <script src="app.js"></script>
   <script src="dashboard.js"></script>
   <script src="account.js"></script>
+  <script src="auth.js"></script>
 </body>
 </html>

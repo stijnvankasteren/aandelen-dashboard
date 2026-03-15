@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """
-Portfolio Analyser lokale proxy
-Draait op poort 8081 en stuurt verzoeken door naar Trading 212 en DEGIRO
-zodat de browser geen CORS-fout krijgt.
-
-Start:  python3 fetch_t212_proxy.py
+Portfolio Analyser proxy + auth server
+Poort 8081 — CORS proxy naar T212/DEGIRO + gebruikersbeheer via SQLite
 """
 
 import json
@@ -12,27 +9,99 @@ import base64
 import time
 import subprocess
 import threading
+import hashlib
+import secrets
+import sqlite3
+import os
 import urllib.request
 import urllib.error
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-_refresh_lock = threading.Lock()
+_refresh_lock   = threading.Lock()
 _refresh_running = False
 
-PORT = 8081
+PORT       = 8081
+DB_PATH    = "/app/data/users.db"
 T212_BASES = {
     "demo": "https://demo.trading212.com/api/v0",
     "live": "https://live.trading212.com/api/v0",
 }
 DEGIRO_BASE = "https://trader.degiro.nl"
 
-# Throttle alleen voor /history/exports endpoints
-MIN_EXPORT_POST_INTERVAL = 60   # seconden tussen export POST requests
-MIN_EXPORT_GET_INTERVAL  = 20   # seconden tussen export GET (poll) requests
+MIN_EXPORT_POST_INTERVAL = 60
+MIN_EXPORT_GET_INTERVAL  = 20
 _last_export_post_time   = 0
 _last_export_get_time    = 0
-_throttle_lock           = __import__("threading").Lock()
+_throttle_lock           = threading.Lock()
 
+# ── SQLite database ───────────────────────────────────────────
+
+_db_lock = threading.Lock()
+
+def get_db():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    with get_db() as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS users (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                username     TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at   TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS sessions (
+                token      TEXT PRIMARY KEY,
+                user_id    INTEGER NOT NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+            CREATE TABLE IF NOT EXISTS settings (
+                user_id INTEGER NOT NULL,
+                key     TEXT NOT NULL,
+                value   TEXT,
+                PRIMARY KEY (user_id, key),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+            CREATE TABLE IF NOT EXISTS transactions (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL,
+                data        TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+            CREATE TABLE IF NOT EXISTS dividends (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL,
+                data        TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+        """)
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def create_session(user_id):
+    token = secrets.token_hex(32)
+    with _db_lock:
+        with get_db() as conn:
+            conn.execute("INSERT INTO sessions (token, user_id) VALUES (?, ?)", (token, user_id))
+    return token
+
+def get_user_from_token(token):
+    if not token:
+        return None
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT u.id, u.username FROM users u JOIN sessions s ON s.user_id = u.id WHERE s.token = ?",
+            (token,)
+        ).fetchone()
+    return dict(row) if row else None
+
+# ── HTTP handler ──────────────────────────────────────────────
 
 class ProxyHandler(BaseHTTPRequestHandler):
 
@@ -40,12 +109,247 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS")
         self.send_header("Access-Control-Allow-Headers",
-                         "Content-Type,X-T212-Key,X-T212-Secret,X-T212-Env,X-Degiro-Session")
+                         "Content-Type,X-T212-Key,X-T212-Secret,X-T212-Env,"
+                         "X-Degiro-Session,X-Auth-Token")
 
     def do_OPTIONS(self):
         self.send_response(204)
         self._cors_headers()
         self.end_headers()
+
+    def _json(self, code, data):
+        body = json.dumps(data).encode()
+        self.send_response(code)
+        self._cors_headers()
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_body(self):
+        length = int(self.headers.get("Content-Length", 0))
+        return self.rfile.read(length) if length > 0 else b""
+
+    def _auth_user(self):
+        token = self.headers.get("X-Auth-Token", "").strip()
+        return get_user_from_token(token)
+
+    # ── Auth endpoints ────────────────────────────────────────
+
+    def _handle_register(self):
+        body = json.loads(self._read_body())
+        username = (body.get("username") or "").strip()
+        password = body.get("password") or ""
+        if not username or not password:
+            self._json(400, {"error": "Gebruikersnaam en wachtwoord zijn verplicht."})
+            return
+        if len(password) < 6:
+            self._json(400, {"error": "Wachtwoord moet minimaal 6 tekens zijn."})
+            return
+        try:
+            with _db_lock:
+                with get_db() as conn:
+                    conn.execute(
+                        "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                        (username, hash_password(password))
+                    )
+                    user_id = conn.execute(
+                        "SELECT id FROM users WHERE username = ?", (username,)
+                    ).fetchone()["id"]
+            token = create_session(user_id)
+            self._json(200, {"token": token, "username": username, "userId": user_id})
+        except sqlite3.IntegrityError:
+            self._json(409, {"error": "Gebruikersnaam is al in gebruik."})
+
+    def _handle_login(self):
+        body = json.loads(self._read_body())
+        username = (body.get("username") or "").strip()
+        password = body.get("password") or ""
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT id, username FROM users WHERE username = ? AND password_hash = ?",
+                (username, hash_password(password))
+            ).fetchone()
+        if not row:
+            self._json(401, {"error": "Onjuiste gebruikersnaam of wachtwoord."})
+            return
+        token = create_session(row["id"])
+        self._json(200, {"token": token, "username": row["username"], "userId": row["id"]})
+
+    def _handle_logout(self):
+        token = self.headers.get("X-Auth-Token", "").strip()
+        if token:
+            with _db_lock:
+                with get_db() as conn:
+                    conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        self._json(200, {"status": "ok"})
+
+    def _handle_reset_password(self):
+        """Wachtwoord wijzigen — vereist huidig wachtwoord of admin-token."""
+        body = json.loads(self._read_body())
+        username     = (body.get("username") or "").strip()
+        old_password = body.get("oldPassword") or ""
+        new_password = body.get("newPassword") or ""
+        admin_key    = body.get("adminKey") or ""
+
+        if not username or not new_password:
+            self._json(400, {"error": "Gebruikersnaam en nieuw wachtwoord zijn verplicht."}); return
+        if len(new_password) < 6:
+            self._json(400, {"error": "Nieuw wachtwoord moet minimaal 6 tekens zijn."}); return
+
+        # Admin reset via ADMIN_KEY omgevingsvariabele
+        admin_ok = admin_key and admin_key == os.environ.get("ADMIN_KEY", "")
+        if not admin_ok:
+            # Verifieer oud wachtwoord
+            with get_db() as conn:
+                row = conn.execute(
+                    "SELECT id FROM users WHERE username = ? AND password_hash = ?",
+                    (username, hash_password(old_password))
+                ).fetchone()
+            if not row:
+                self._json(401, {"error": "Huidig wachtwoord klopt niet."}); return
+
+        with _db_lock:
+            with get_db() as conn:
+                conn.execute(
+                    "UPDATE users SET password_hash = ? WHERE username = ?",
+                    (hash_password(new_password), username)
+                )
+        self._json(200, {"status": "ok"})
+
+    def _handle_me(self):
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."})
+            return
+        self._json(200, user)
+
+    # ── Settings endpoints ────────────────────────────────────
+
+    def _handle_settings_get(self):
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."}); return
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT key, value FROM settings WHERE user_id = ?", (user["id"],)
+            ).fetchall()
+        self._json(200, {r["key"]: json.loads(r["value"]) for r in rows})
+
+    def _handle_settings_post(self):
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."}); return
+        body = json.loads(self._read_body())
+        with _db_lock:
+            with get_db() as conn:
+                for key, value in body.items():
+                    conn.execute(
+                        "INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?) "
+                        "ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value",
+                        (user["id"], key, json.dumps(value))
+                    )
+        self._json(200, {"status": "ok"})
+
+    # ── Transacties endpoints ─────────────────────────────────
+
+    def _handle_transactions_get(self):
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."}); return
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT data FROM transactions WHERE user_id = ?", (user["id"],)
+            ).fetchall()
+        self._json(200, [json.loads(r["data"]) for r in rows])
+
+    def _handle_transactions_post(self):
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."}); return
+        transactions = json.loads(self._read_body())
+        with _db_lock:
+            with get_db() as conn:
+                conn.execute("DELETE FROM transactions WHERE user_id = ?", (user["id"],))
+                for tx in transactions:
+                    conn.execute(
+                        "INSERT INTO transactions (user_id, data) VALUES (?, ?)",
+                        (user["id"], json.dumps(tx))
+                    )
+        self._json(200, {"status": "ok", "count": len(transactions)})
+
+    # ── Dividenden endpoints ──────────────────────────────────
+
+    def _handle_dividends_get(self):
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."}); return
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT data FROM dividends WHERE user_id = ?", (user["id"],)
+            ).fetchall()
+        self._json(200, [json.loads(r["data"]) for r in rows])
+
+    def _handle_dividends_post(self):
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."}); return
+        dividends = json.loads(self._read_body())
+        with _db_lock:
+            with get_db() as conn:
+                conn.execute("DELETE FROM dividends WHERE user_id = ?", (user["id"],))
+                for d in dividends:
+                    conn.execute(
+                        "INSERT INTO dividends (user_id, data) VALUES (?, ?)",
+                        (user["id"], json.dumps(d))
+                    )
+        self._json(200, {"status": "ok", "count": len(dividends)})
+
+    # ── Refresh endpoint ──────────────────────────────────────
+
+    def _handle_refresh(self):
+        global _refresh_running
+        with _refresh_lock:
+            if _refresh_running:
+                self._json(409, {"status": "busy", "message": "Refresh draait al"}); return
+            _refresh_running = True
+        try:
+            print("[proxy/refresh] fetch_data.py gestart...")
+            subprocess.run(["python3", "/app/fetch_data.py"],
+                           capture_output=True, text=True, timeout=300)
+            print("[proxy/refresh] fetch_data.py klaar")
+            self._json(200, {"status": "ok"})
+        except subprocess.TimeoutExpired:
+            self._json(504, {"status": "error", "message": "Timeout"})
+        except Exception as e:
+            self._json(500, {"status": "error", "message": str(e)})
+        finally:
+            with _refresh_lock:
+                _refresh_running = False
+
+    # ── Routing ───────────────────────────────────────────────
+
+    def _handle(self, method):
+        p = self.path.split("?")[0]
+
+        if   p == "/auth/register":       self._handle_register()
+        elif p == "/auth/login":          self._handle_login()
+        elif p == "/auth/logout":         self._handle_logout()
+        elif p == "/auth/me":             self._handle_me()
+        elif p == "/user/settings"  and method == "GET":  self._handle_settings_get()
+        elif p == "/user/settings"  and method == "POST": self._handle_settings_post()
+        elif p == "/user/transactions" and method == "GET":  self._handle_transactions_get()
+        elif p == "/user/transactions" and method == "POST": self._handle_transactions_post()
+        elif p == "/user/dividends" and method == "GET":  self._handle_dividends_get()
+        elif p == "/user/dividends" and method == "POST": self._handle_dividends_post()
+        elif p == "/auth/reset-password" and method == "POST": self._handle_reset_password()
+    elif p == "/refresh":             self._handle_refresh()
+        elif self.path.startswith("/degiro"):    self._handle_degiro(method, self.path[7:])
+        elif self.path.startswith("/s3download"): self._handle_s3download()
+        else:
+            path = self.path[5:] if self.path.startswith("/t212") else self.path
+            self._handle_t212(method, path)
+
+    # ── Throttle ──────────────────────────────────────────────
 
     def _throttle(self, is_export_post=False, is_export_get=False):
         global _last_export_post_time, _last_export_get_time
@@ -64,70 +368,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
                     time.sleep(wait)
                 _last_export_get_time = time.time()
 
-    def _handle_refresh(self):
-        global _refresh_running
-        with _refresh_lock:
-            if _refresh_running:
-                self.send_response(409)
-                self._cors_headers()
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(b'{"status":"busy","message":"Refresh draait al"}')
-                return
-            _refresh_running = True
-        try:
-            print("[proxy/refresh] fetch_data.py gestart...")
-            result = subprocess.run(
-                ["python3", "/app/fetch_data.py"],
-                capture_output=True, text=True, timeout=300
-            )
-            print("[proxy/refresh] fetch_data.py klaar")
-            self.send_response(200)
-            self._cors_headers()
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok"}).encode())
-        except subprocess.TimeoutExpired:
-            self.send_response(504)
-            self._cors_headers()
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(b'{"status":"error","message":"Timeout"}')
-        except Exception as e:
-            self.send_response(500)
-            self._cors_headers()
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode())
-        finally:
-            with _refresh_lock:
-                _refresh_running = False
-
-    def _handle(self, method):
-        raw_path = self.path
-
-        if raw_path == "/refresh":
-            self._handle_refresh()
-            return
-        elif raw_path.startswith("/degiro"):
-            self._handle_degiro(method, raw_path[7:])
-        elif raw_path.startswith("/s3download"):
-            self._handle_s3download()
-        else:
-            self._handle_t212(method, raw_path[5:] if raw_path.startswith("/t212") else raw_path)
+    # ── S3 download ───────────────────────────────────────────
 
     def _handle_s3download(self):
-        """Download een presigned S3-URL en geef de inhoud terug (omzeilt CORS)."""
-        import urllib.parse as up
-        qs  = up.urlparse(self.path).query
+        qs     = urllib.parse.urlparse(self.path).query
         params = dict(p.split("=", 1) for p in qs.split("&") if "=" in p)
-        url = up.unquote(params.get("url", ""))
+        url    = urllib.parse.unquote(params.get("url", ""))
         if not url.startswith("https://"):
-            self.send_response(400)
-            self._cors_headers()
-            self.end_headers()
-            self.wfile.write(b'{"error":"Ongeldige URL"}')
-            return
+            self._json(400, {"error": "Ongeldige URL"}); return
         print(f"[proxy/s3] GET {url[:80]}...")
         try:
             with urllib.request.urlopen(url) as resp:
@@ -138,35 +386,28 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(data)
         except Exception as e:
-            self.send_response(500)
-            self._cors_headers()
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": str(e)}).encode())
+            self._json(500, {"error": str(e)})
+
+    # ── DEGIRO ────────────────────────────────────────────────
 
     def _handle_degiro(self, method, path):
-        session_id = self.headers.get("X-Degiro-Session", "").strip()
-        url        = DEGIRO_BASE + path
-
-        print(f"[proxy/degiro] {method} {url}")
-
+        session_id     = self.headers.get("X-Degiro-Session", "").strip()
+        url            = DEGIRO_BASE + path
         content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length) if content_length > 0 else None
-
-        req = urllib.request.Request(
-            url,
-            data=body,
-            method=method,
-            headers={
-                "Content-Type":  "application/json",
-                "User-Agent":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                "Accept":        "application/json, text/plain, */*",
-                "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
-                "Origin":        "https://trader.degiro.nl",
-                "Referer":       "https://trader.degiro.nl/",
-                **({"Cookie": f"JSESSIONID={session_id}"} if session_id else {}),
-            },
-        )
+        body           = self.rfile.read(content_length) if content_length > 0 else None
+        print(f"[proxy/degiro] {method} {url}")
+        req = urllib.request.Request(url, data=body, method=method, headers={
+            "Content-Type":    "application/json",
+            "User-Agent":      "Mozilla/5.0",
+            "Accept":          "application/json, text/plain, */*",
+            "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
+            "Origin":          "https://trader.degiro.nl",
+            "Referer":         "https://trader.degiro.nl/",
+            **({"Cookie": f"JSESSIONID={session_id}"} if session_id else {}),
+        })
         self._forward(req)
+
+    # ── Trading 212 ───────────────────────────────────────────
 
     def _handle_t212(self, method, path):
         api_key    = self.headers.get("X-T212-Key",    "").strip()
@@ -175,7 +416,6 @@ class ProxyHandler(BaseHTTPRequestHandler):
         base       = T212_BASES.get(env, T212_BASES["demo"])
         url        = base + path
 
-        # Basic Auth: base64(key:secret)
         if api_secret:
             credentials = base64.b64encode(f"{api_key}:{api_secret}".encode()).decode()
             auth_header = f"Basic {credentials}"
@@ -183,37 +423,31 @@ class ProxyHandler(BaseHTTPRequestHandler):
             auth_header = api_key
 
         is_export      = "history/exports" in path
-        is_export_post = is_export and method == "POST"
-        is_export_get  = is_export and method == "GET"
-        self._throttle(is_export_post=is_export_post, is_export_get=is_export_get)
+        self._throttle(is_export_post=(is_export and method == "POST"),
+                       is_export_get=(is_export and method == "GET"))
         print(f"[proxy/t212] {method} {url}")
-        print(f"[proxy/t212] env={env} key={api_key[:6] if api_key else 'leeg'}... secret={'ja' if api_secret else 'leeg'}")
 
         content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length) if content_length > 0 else None
+        body           = self.rfile.read(content_length) if content_length > 0 else None
 
-        req = urllib.request.Request(
-            url,
-            data=body,
-            method=method,
-            headers={
-                "Authorization": auth_header,
-                "Content-Type":  "application/json",
-                "User-Agent":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                "Accept":        "application/json",
-                "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
-                "Origin":        "https://app.trading212.com",
-                "Referer":       "https://app.trading212.com/",
-            },
-        )
+        req = urllib.request.Request(url, data=body, method=method, headers={
+            "Authorization":   auth_header,
+            "Content-Type":    "application/json",
+            "User-Agent":      "Mozilla/5.0",
+            "Accept":          "application/json",
+            "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
+            "Origin":          "https://app.trading212.com",
+            "Referer":         "https://app.trading212.com/",
+        })
         self._forward(req)
 
-    def _forward(self, req):
+    # ── Forward ───────────────────────────────────────────────
 
+    def _forward(self, req):
         for attempt in range(6):
             try:
                 with urllib.request.urlopen(req) as resp:
-                    data = resp.read()
+                    data         = resp.read()
                     content_type = resp.headers.get("Content-Type", "application/json")
                     self.send_response(resp.status)
                     self._cors_headers()
@@ -228,7 +462,6 @@ class ProxyHandler(BaseHTTPRequestHandler):
                     print(f"[proxy] Rate limit (429), wacht {wait}s... (poging {attempt+1}/5)")
                     time.sleep(wait)
                     continue
-                print(f"[proxy] HTTP {e.code} response: {body_err.decode('utf-8', errors='replace')}")
                 self.send_response(e.code)
                 self._cors_headers()
                 self.send_header("Content-Type", "application/json")
@@ -236,11 +469,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 self.wfile.write(body_err)
                 return
             except Exception as exc:
-                self.send_response(500)
-                self._cors_headers()
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(exc)}).encode())
+                self._json(500, {"error": str(exc)})
                 return
 
     def do_GET(self):    self._handle("GET")
@@ -252,9 +481,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    init_db()
     server = HTTPServer(("0.0.0.0", PORT), ProxyHandler)
-    print(f"Trading 212 proxy draait op http://0.0.0.0:{PORT}")
-    print("Stop met Ctrl+C")
+    print(f"Portfolio proxy draait op http://0.0.0.0:{PORT}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

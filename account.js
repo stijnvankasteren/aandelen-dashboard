@@ -10,7 +10,7 @@ let tradeActiveT212Key  = null; // Trading 212 instrument ticker
 let tradeSide           = "BUY";
 
 
-function saveApiSettings() {
+async function saveApiSettings() {
   const key    = document.getElementById("t212-api-key").value.trim();
   const secret = document.getElementById("t212-api-secret").value.trim();
   const env    = document.getElementById("t212-env").value;
@@ -21,6 +21,12 @@ function saveApiSettings() {
   T212.setApiKey(key);
   T212.setApiSecret(secret);
   T212.setEnv(env);
+  // Sla ook op in server-DB zodat de instellingen op elk apparaat beschikbaar zijn
+  try {
+    await Auth.saveSettings({ t212_key: key, t212_secret: secret, t212_env: env });
+  } catch (e) {
+    console.warn("[account] Kon instellingen niet opslaan op server:", e);
+  }
   showStatus("Instellingen opgeslagen.", "ok");
 }
 
@@ -349,19 +355,11 @@ let _geschTabInited   = false;
 
 async function _loadFromDb() {
   try {
-    const counts = await PortfolioDB.count();
-    if (counts.transactions === 0 && counts.dividends === 0) return;
-
-    const [txs, divs] = await Promise.all([
-      PortfolioDB.loadTransactions(),
-      PortfolioDB.loadDividends(),
-    ]);
-
-    _allTransactions = txs;
-    _allDividends    = divs;
+    // Data is al geladen via authOnSuccess — toon alleen de status als er data is
+    if (_allTransactions.length === 0 && _allDividends.length === 0) return;
 
     const statusEl = document.getElementById("gesch-csv-status");
-    statusEl.innerHTML = `<div class="account-status ok">${_allTransactions.length} transacties en ${_allDividends.length} dividenden geladen uit lokale opslag.</div>`;
+    statusEl.innerHTML = `<div class="account-status ok">${_allTransactions.length} transacties en ${_allDividends.length} dividenden geladen.</div>`;
 
     _txShown = 0;
     document.getElementById("gesch-tx-list").innerHTML = "";
@@ -430,10 +428,10 @@ async function fetchAllBrokersViaApi() {
   _allTransactions.sort((a, b) => new Date(b.dateModified) - new Date(a.dateModified));
   _allDividends.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  // Sla op in IndexedDB
+  // Sla op in server-DB (beschikbaar op elk apparaat)
   try {
-    await PortfolioDB.saveTransactions(_allTransactions);
-    await PortfolioDB.saveDividends(_allDividends);
+    await Auth.saveTransactions(_allTransactions);
+    await Auth.saveDividends(_allDividends);
     console.log(`[DB] Opgeslagen: ${_allTransactions.length} transacties, ${_allDividends.length} dividenden.`);
   } catch (e) {
     console.warn("[DB] Opslaan mislukt:", e);

@@ -1021,8 +1021,34 @@ function setupDashboardTab() {
         dashContent.classList.remove("hidden");
         dashboardInitialized = false;
         initDashboard();
+      } else if (tab === "geschiedenis") {
+        if (geschContent) geschContent.classList.remove("hidden");
+        // Herlaad transacties vanuit server-DB
+        Auth.loadTransactions().then(txs => {
+          Auth.loadDividends().then(divs => {
+            _allTransactions.length = 0; _allTransactions.push(...txs);
+            _allDividends.length    = 0; _allDividends.push(...divs);
+            _txShown = 0;
+            document.getElementById("gesch-tx-list").innerHTML = "";
+            if (typeof renderMoreTransactions === "function") renderMoreTransactions();
+            if (typeof renderDividendList    === "function") renderDividendList();
+          });
+        }).catch(() => {});
+      } else if (tab === "account") {
+        if (accountContent) accountContent.classList.remove("hidden");
+        // Herlaad API-instellingen vanuit server-DB
+        Auth.loadSettings().then(settings => {
+          if (settings.t212_key) {
+            T212.setApiKey(settings.t212_key);
+            T212.setApiSecret(settings.t212_secret || "");
+            T212.setEnv(settings.t212_env || "demo");
+            document.getElementById("t212-api-key").value    = settings.t212_key;
+            document.getElementById("t212-api-secret").value = settings.t212_secret || "";
+            document.getElementById("t212-env").value        = settings.t212_env    || "demo";
+            if (T212.isConfigured() && typeof showAccountInfo === "function") showAccountInfo();
+          }
+        }).catch(() => {});
       }
-      // "account" en "geschiedenis" worden afgehandeld door account.js
     });
   });
 }
