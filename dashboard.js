@@ -49,11 +49,12 @@ function getPortfolioTickers() {
   });
 }
 
-// Gewichten op basis van T212 current_value als beschikbaar, anders Yahoo-prijs
+// Gewichten op basis van cost_eur + ppl (EUR), anders Yahoo-prijs × aandelen
 function getPortfolioWeights(tickers) {
   const values = tickers.map(t => {
     const h = portfolioData.holdings[t];
-    if (h?.current_value) return h.current_value;
+    if (h?.cost_eur != null && h?.ppl != null) return h.cost_eur + h.ppl;
+    if (h?.cost_eur != null) return h.cost_eur;
     const item = allRankings.find(r => r.ticker === t);
     return (item?.price || 0) * (h?.shares || 0);
   });
@@ -61,20 +62,23 @@ function getPortfolioWeights(tickers) {
   return { weights: values.map(v => (total > 0 ? v / total : 0)), totalValue: total, values };
 }
 
-// Echte totaalwaarde van alle T212-posities (inclusief buiten universum)
+// Echte totaalwaarde van alle T212-posities in EUR.
+// kostprijsEUR (uit CSV) + ppl (T212, al in EUR) = huidige marktwaarde in EUR
 function getT212TotalValue() {
   const holdings = portfolioData.holdings || {};
-  return Object.values(holdings).reduce((s, h) => s + (h.current_value || 0), 0);
-}
-
-// Totale inlegkosten van alle T212-posities in accountvaluta (EUR)
-// = huidige waarde - ppl = kostprijs in EUR
-function getT212TotalCost() {
-  const holdings = portfolioData.holdings || {};
   return Object.values(holdings).reduce((s, h) => {
-    if (h.current_value != null && h.ppl != null) return s + (h.current_value - h.ppl);
+    const cost = h.cost_eur;   // gezet vanuit CSV total
+    const ppl  = h.ppl;
+    if (cost != null && ppl != null) return s + cost + ppl;
+    if (cost != null) return s + cost;
     return s;
   }, 0);
+}
+
+// Totale kostprijs van alle T212-posities in EUR (uit CSV)
+function getT212TotalCost() {
+  const holdings = portfolioData.holdings || {};
+  return Object.values(holdings).reduce((s, h) => s + (h.cost_eur || 0), 0);
 }
 
 // ── Wiskunde helpers ─────────────────────────────────────────
@@ -230,15 +234,12 @@ async function initDashboard() {
         for (const p of positions) {
           if (!p.ticker || p.quantity <= 0) continue;
           const yahooTicker = t212TickerToYahoo(p.ticker);
-          // ppl is in accountvaluta (EUR); averagePrice * quantity + ppl = huidige waarde in EUR
-          const costEur = (p.averagePrice || 0) * p.quantity;
-          const currentValueEur = p.ppl != null ? costEur + p.ppl : null;
           portfolioData.holdings[yahooTicker] = {
             shares: p.quantity,
             avg_cost: p.averagePrice || null,
             current_price: p.currentPrice || null,
-            current_value: currentValueEur,
-            ppl: p.ppl ?? null,
+            ppl: p.ppl ?? null,        // winst/verlies in EUR (accountvaluta)
+            cost_eur: null,            // wordt ingevuld vanuit CSV-transacties
             in_universe: !!allRankings.find(r => r.ticker === yahooTicker),
           };
         }
@@ -248,19 +249,44 @@ async function initDashboard() {
     }
   }
 
-  // Fallback: bereken avg_cost uit transactiegeschiedenis als T212 geen averagePrice geeft
+  // Bereken kostprijs in EUR per positie vanuit CSV-transacties (total = EUR-bedrag)
+  // en sla op als cost_eur. Dit is de enige valutaneutrale kostprijs.
   if (typeof _allTransactions !== "undefined" && _allTransactions.length > 0) {
+    // Bouw kostprijs op per yahoo-ticker via CSV total (EUR)
+    const costByTicker = {}; // yahooTicker → netto kostprijs in EUR
+    for (const tx of _allTransactions) {
+      const csvTicker = (tx.ticker || "").toUpperCase();
+      if (!csvTicker || csvTicker === "—") continue;
+      // Zoek yahoo-ticker voor deze CSV-ticker
+      const yahoo = Object.keys(portfolioData.holdings).find(h =>
+        h.replace(".AS","").replace(".DE","").replace(".PA","").toUpperCase() === csvTicker
+      ) || csvTicker;
+      if (!costByTicker[yahoo]) costByTicker[yahoo] = 0;
+      const total = Math.abs(tx.total || (tx.fillPrice * (tx.filledQuantity || 0)) || 0);
+      if (tx.side === "BUY" || tx.type === "BUY") {
+        costByTicker[yahoo] += total;
+      } else if (tx.side === "SELL" || tx.type === "SELL") {
+        // Proportioneel verminderen: schat via de huidige positie
+        const h = portfolioData.holdings[yahoo];
+        if (h && h.shares > 0 && costByTicker[yahoo] > 0) {
+          const qty = tx.filledQuantity || 0;
+          const ratio = qty / (h.shares + qty); // aandeel van totaal dat verkocht is
+          costByTicker[yahoo] = Math.max(0, costByTicker[yahoo] * (1 - ratio));
+        }
+      }
+    }
+    // Koppel kostprijs aan holdings
+    for (const [yahoo, cost] of Object.entries(costByTicker)) {
+      if (portfolioData.holdings[yahoo]) {
+        portfolioData.holdings[yahoo].cost_eur = cost;
+      }
+    }
+    // avg_cost fallback voor universe-tickers zonder averagePrice
     for (const ticker of Object.keys(portfolioData.holdings)) {
       if (portfolioData.holdings[ticker].avg_cost) continue;
-      const t212Ticker = typeof resolveT212Ticker === "function" ? resolveT212Ticker(ticker) : ticker;
-      const buys = _allTransactions.filter(tx =>
-        (tx.side === "BUY" || tx.type === "BUY") &&
-        (tx.ticker === ticker || tx.ticker === t212Ticker)
-      );
-      if (buys.length > 0) {
-        const totalShares = buys.reduce((s, tx) => s + (tx.filledQuantity || tx.quantity || 0), 0);
-        const totalCost = buys.reduce((s, tx) => s + (tx.fillPrice || tx.price || 0) * (tx.filledQuantity || tx.quantity || 0), 0);
-        if (totalShares > 0) portfolioData.holdings[ticker].avg_cost = totalCost / totalShares;
+      const h = portfolioData.holdings[ticker];
+      if (h.cost_eur && h.shares > 0) {
+        portfolioData.holdings[ticker].avg_cost = h.cost_eur / h.shares;
       }
     }
   }
