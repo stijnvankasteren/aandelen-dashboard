@@ -18,7 +18,7 @@ import re
 import urllib.request
 import urllib.error
 import urllib.parse
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 try:
@@ -729,7 +729,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                     cash = _get("/equity/account/cash")
 
                     payload = {
-                        "fetched_at": datetime.utcnow().isoformat() + "Z",
+                        "fetched_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                         "positions":  positions if isinstance(positions, list) else [],
                         "cash":       cash if isinstance(cash, dict) else {},
                     }
@@ -780,7 +780,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                         conn.execute(
                             "INSERT INTO settings (user_id, key, value) VALUES (?, 't212_last_sync', ?) "
                             "ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value",
-                            (user["id"], json.dumps(datetime.utcnow().isoformat() + "Z"))
+                            (user["id"], json.dumps(datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")))
                         )
             except Exception as e:
                 print(f"[csv/full] Fout voor user {user['id']}: {e}")
