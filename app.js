@@ -527,20 +527,65 @@ function renderPriceChart(ticker, period = "3M") {
   // Aantal x-ticks aanpassen aan periode
   const maxTicks = { "1W": 7, "1M": 6, "3M": 6, "1Y": 12 }[period] || 6;
 
+  // Verzamel alle trade-datums (insider + congress) voor stippen op de grafiek
+  const insiderTrades  = (insiderData[ticker]  || {}).recent || [];
+  const congressTrades = (congressData[ticker] || {}).recent || [];
+  const allTrades = [
+    ...insiderTrades.map(t  => ({ date: t.date,  type: "buy" })),
+    ...congressTrades.map(t => ({ date: t.date,  type: t.type || "buy" })),
+  ];
+
+  // Bouw buy/sell punt-datasets: null op elke index behalve waar een trade is
+  const buyPoints  = sliceDates.map(d => {
+    const hasBuy = allTrades.some(t => t.type === "buy"  && t.date === d);
+    return hasBuy ? slicePrices[sliceDates.indexOf(d)] : null;
+  });
+  const sellPoints = sliceDates.map(d => {
+    const hasSell = allTrades.some(t => t.type === "sell" && t.date === d);
+    return hasSell ? slicePrices[sliceDates.indexOf(d)] : null;
+  });
+  const hasAnnotations = buyPoints.some(v => v !== null) || sellPoints.some(v => v !== null);
+
   priceChart = new Chart(canvas, {
     type: "line",
     data: {
       labels: sliceDates,
-      datasets: [{
-        data: slicePrices,
-        borderColor: lineColor,
-        backgroundColor: fillColor,
-        borderWidth: 2,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-        fill: true,
-        tension: 0.15,
-      }]
+      datasets: [
+        {
+          data: slicePrices,
+          borderColor: lineColor,
+          backgroundColor: fillColor,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          fill: true,
+          tension: 0.15,
+        },
+        ...(hasAnnotations ? [
+          {
+            label: "Koop",
+            data: buyPoints,
+            borderColor: "transparent",
+            backgroundColor: "#3fb950",
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            pointStyle: "circle",
+            showLine: false,
+            fill: false,
+          },
+          {
+            label: "Verkoop",
+            data: sellPoints,
+            borderColor: "transparent",
+            backgroundColor: "#f85149",
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            pointStyle: "circle",
+            showLine: false,
+            fill: false,
+          },
+        ] : []),
+      ]
     },
     options: {
       responsive: true,
@@ -557,6 +602,9 @@ function renderPriceChart(ticker, period = "3M") {
           callbacks: {
             title: ctx => ctx[0].label,
             label: ctx => {
+              if (ctx.datasetIndex > 0) {
+                return ctx.datasetIndex === 1 ? " ● Koop" : " ● Verkoop";
+              }
               const pct = ((ctx.raw / startPrice - 1) * 100).toFixed(2);
               const sign = pct >= 0 ? "+" : "";
               return ` ${ctx.raw.toFixed(2)}  (${sign}${pct}%)`;
