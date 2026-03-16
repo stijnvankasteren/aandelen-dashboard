@@ -3,3 +3,4 @@
 */15 * * * *    /app/run_positions_refresh.sh >> /app/data/t212_cron.log 2>&1
 0 8,12,17 * * * cd /app && python3 fetch_data.py >> /app/data/fetch_cron.log 2>&1
 */15 * * * *    cd /app && python3 fetch_trades.py >> /app/data/trades_cron.log 2>&1
+0 * * * *       cd /app && python3 backfill_congress.py >> /app/data/backfill_cron.log 2>&1
