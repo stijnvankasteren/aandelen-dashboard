@@ -1868,6 +1868,8 @@ tbody td {
 .trades-sortable.sort-asc::after  { content: " ▲"; font-size: 10px; }
 .trades-sortable.sort-desc::after { content: " ▼"; font-size: 10px; }
 
+.trades-row { cursor: pointer; }
+.trades-row:hover { background: rgba(255,255,255,0.05); }
 .trades-ticker { font-weight: 700; color: var(--blue-lt); }
 .trades-name   { color: var(--muted); max-width: 200px; }
 
