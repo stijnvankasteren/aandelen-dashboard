@@ -194,6 +194,7 @@ def recalculate_scores(congress_data):
 # ── Hoofdlogica ───────────────────────────────────────────────────────────────
 
 def main():
+    """Verwerkt het eerstvolgende onvoltooide jaar. Geeft True terug als alles klaar is."""
     current_year = date.today().year
     all_years    = list(range(START_YEAR, current_year + 1))
 
@@ -204,8 +205,7 @@ def main():
     remaining = [y for y in all_years if y not in completed]
 
     if not remaining:
-        print("✓ Alle jaren al verwerkt. Backfill klaar.")
-        return
+        return True
 
     # Verwerk het oudste nog niet voltooide jaar
     year = remaining[0]
@@ -216,7 +216,7 @@ def main():
         entries = fetch_fd_index(year)
     except Exception as e:
         print(f"FOUT: index ophalen voor {year}: {e}")
-        return
+        return False
 
     print(f"  {len(entries)} PTR filings gevonden in {year}")
 
@@ -236,7 +236,7 @@ def main():
             del state["in_progress"][str(year)]
         save_backfill(state)
         print(f"  ✓ Jaar {year} volledig verwerkt.")
-        return
+        return False
 
     # Laad bestaande congress data
     congress_data = load_congress()
@@ -256,7 +256,7 @@ def main():
             save_backfill(state)
             save_congress(congress_data)
             print(f"  ✓ Jaar {year} volledig verwerkt (datum {filing_date} >= {next_year_start}).")
-            return
+            return False
 
         try:
             trades = parse_pdf(doc_id, year, rep_name, filing_date.isoformat())
@@ -296,7 +296,14 @@ def main():
     recalculate_scores(congress_data)
     save_congress(congress_data)
     print(f"\nDeze run klaar: {new_trades_total} nieuwe trades toegevoegd voor jaar {year}.")
+    return False
 
 
 if __name__ == "__main__":
-    main()
+    # Loop continu door alle jaren totdat alles verwerkt is, dan stoppen
+    while True:
+        done = main()
+        if done:
+            print("✓ Alle jaren verwerkt. Backfill proces stopt.")
+            break
+        time.sleep(2)
