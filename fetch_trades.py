@@ -27,7 +27,7 @@ CACHE_MAX_MINUTES = 15
 
 
 def _cache_age_minutes(filepath):
-    """Geeft de leeftijd van het cachebestand in minuten terug, of None als het niet bestaat."""
+    """Geeft de leeftijd van het cachebestand in minuten terug, of None als het niet bestaat of leeg is."""
     if not os.path.exists(filepath):
         return None
     try:
@@ -35,6 +35,13 @@ def _cache_age_minutes(filepath):
             data = json.load(f)
         ts = data.get("_fetched_at")
         if not ts:
+            return None
+        # Beschouw cache als verlopen als er geen enkele ticker met trades in zit
+        has_data = any(
+            isinstance(v, dict) and (v.get("buy_count", 0) + v.get("sell_count", 0)) > 0
+            for k, v in data.items() if not k.startswith("_")
+        )
+        if not has_data:
             return None
         age = (datetime.utcnow() - datetime.fromisoformat(ts)).total_seconds() / 60
         return age
