@@ -6,7 +6,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    image: portfolio-analyse-frontend:latest
     container_name: portfolio-frontend
     restart: unless-stopped
     ports:
@@ -20,7 +19,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.proxy
-    image: portfolio-analyse-proxy:latest
     container_name: portfolio-proxy
     restart: unless-stopped
     volumes:
