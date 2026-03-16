@@ -14,6 +14,7 @@ import sys
 import time
 import math
 import urllib.request
+import urllib.parse
 import xml.etree.ElementTree as ET
 from datetime import datetime, date
 
@@ -817,9 +818,171 @@ def load_cached_congress():
     return None
 
 
+def _parse_ptr_pdf_text(text, rep_name, filing_date_iso):
+    """Extraheer ticker/type/datum uit de tekst van een House PTR PDF."""
+    import re as _re
+    # Patroon: (TICKER) [ST] gevolgd door P of S en datum MM/DD/YYYY
+    pattern = _re.compile(
+        r"\(([A-Z]{1,5})\)\s*(?:\[[A-Z]+\])?\s*\n?\s*([PS])\s+(\d{1,2}/\d{1,2}/\d{4})",
+        _re.MULTILINE,
+    )
+    trades = []
+    for m in pattern.finditer(text):
+        ticker   = m.group(1).upper()
+        tx_type  = "buy" if m.group(2) == "P" else "sell"
+        tx_raw   = m.group(3)
+        try:
+            mo, dy, yr = tx_raw.split("/")
+            tx_date = f"{yr}-{mo.zfill(2)}-{dy.zfill(2)}"
+        except Exception:
+            tx_date = filing_date_iso
+        trades.append({
+            "ticker":           ticker,
+            "transaction_date": tx_date,
+            "transaction_type": "purchase" if tx_type == "buy" else "sale",
+            "representative":   rep_name,
+            "party":            "",
+            "amount":           "",
+        })
+    return trades
+
+
+def _fetch_house_trades():
+    """Haal House PTR trades op via disclosures-clerk.house.gov (PDF parsing)."""
+    import zipfile, io, time
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        print("  House trades overgeslagen: pypdf niet geïnstalleerd.")
+        return []
+
+    from datetime import timedelta
+    trades = []
+    cutoff_dt = date.today() - timedelta(days=INSIDER_LOOKBACK)
+    current_year = date.today().year
+
+    # Stap 1: download FD bulk index ZIP om alle PTR DocIDs te krijgen
+    fd_url = f"https://disclosures-clerk.house.gov/public_disc/financial-pdfs/{current_year}FD.zip"
+    try:
+        req = urllib.request.Request(fd_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            zip_data = resp.read()
+        z = zipfile.ZipFile(io.BytesIO(zip_data))
+        txt = z.read(f"{current_year}FD.txt").decode("utf-8", errors="replace")
+    except Exception as e:
+        print(f"  House FD index fout: {e}")
+        return trades
+
+    # Parse TSV: Prefix Last First Suffix FilingType StateDst Year FilingDate DocID
+    ptr_entries = []
+    for line in txt.splitlines()[1:]:
+        cols = line.strip().split("\t")
+        if len(cols) < 9 or cols[4].strip() != "P":
+            continue
+        filing_date_raw = cols[7].strip()
+        doc_id = cols[8].strip()
+        try:
+            m, d, y = filing_date_raw.split("/")
+            filing_date = date(int(y), int(m), int(d))
+        except Exception:
+            continue
+        if filing_date < cutoff_dt:
+            continue
+        name = f"{cols[2].strip()} {cols[1].strip()}"
+        ptr_entries.append((doc_id, name, filing_date))
+
+    print(f"  House: {len(ptr_entries)} PTR filings binnen {INSIDER_LOOKBACK} dagen, PDFs parsen...")
+
+    # Stap 2: parse per DocID de PDF
+    base = f"https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/{current_year}/"
+    for i, (doc_id, rep_name, filing_date) in enumerate(ptr_entries):
+        pdf_url = f"{base}{doc_id}.pdf"
+        try:
+            req = urllib.request.Request(pdf_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                pdf_data = resp.read()
+            reader = PdfReader(io.BytesIO(pdf_data))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            found = _parse_ptr_pdf_text(text, rep_name, filing_date.isoformat())
+            trades.extend(found)
+        except Exception:
+            continue
+        if i > 0 and i % 20 == 0:
+            time.sleep(0.5)  # beleefd scrapen
+
+    print(f"  House PTR: {len(trades)} transacties gevonden.")
+    return trades
+
+
+def _fetch_senate_trades():
+    """Haal Senate PTR trades op via efdsearch.senate.gov (PDF parsing)."""
+    import zipfile, io, urllib.parse, time
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        print("  Senate trades overgeslagen: pypdf niet geïnstalleerd.")
+        return []
+
+    from datetime import timedelta
+    trades = []
+    cutoff_dt = date.today() - timedelta(days=INSIDER_LOOKBACK)
+
+    # Stap 1: zoek PTR filings via Senate EFTS API
+    cutoff_from = cutoff_dt.strftime("%m/%d/%Y")
+    cutoff_to   = date.today().strftime("%m/%d/%Y")
+    search_url  = (
+        "https://efts.senate.gov/LATEST/search-index"
+        f"?q=%22%22&report_types=ptr"
+        f"&dateRange=custom&fromDate={urllib.parse.quote(cutoff_from)}"
+        f"&toDate={urllib.parse.quote(cutoff_to)}&resultSize=250"
+    )
+    ptr_entries = []  # lijst van (senator_name, ptr_link)
+    try:
+        req = urllib.request.Request(search_url, headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept":     "application/json",
+            "Referer":    "https://efdsearch.senate.gov/",
+        })
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read())
+        for hit in data.get("hits", {}).get("hits", []):
+            src  = hit.get("_source", {})
+            name = f"{src.get('first_name', '')} {src.get('last_name', '')}".strip()
+            link = src.get("pdf_link") or src.get("ptr_link") or ""
+            if link:
+                ptr_entries.append((name, link))
+        print(f"  Senate EFTS: {len(ptr_entries)} PTR filings gevonden.")
+    except Exception as e:
+        print(f"  Senate EFTS zoeken mislukt: {e}")
+        return trades
+
+    # Stap 2: parse per PTR link de PDF
+    for i, (rep_name, pdf_link) in enumerate(ptr_entries):
+        if not pdf_link.startswith("http"):
+            pdf_link = "https://efdsearch.senate.gov" + pdf_link
+        try:
+            req = urllib.request.Request(pdf_link, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                pdf_data = resp.read()
+            reader = PdfReader(io.BytesIO(pdf_data))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            # Senate PDFs hebben een iets ander formaat — probeer hetzelfde patroon
+            found = _parse_ptr_pdf_text(text, rep_name, date.today().isoformat())
+            trades.extend(found)
+        except Exception:
+            continue
+        if i > 0 and i % 20 == 0:
+            time.sleep(0.5)
+
+    print(f"  Senate PTR: {len(trades)} transacties gevonden.")
+    return trades
+
+
 def fetch_congress_trades(tickers):
     """
-    Haal Senate- en House-trades op via senate-stock-watcher en quiverquant GitHub repos.
+    Haal Senate- en House-trades op via de officiële overheidswebsites.
+    Senate: efts.senate.gov EFTS API
+    House:  disclosures-clerk.house.gov PTR filings
     Filtert voor onze tickers binnen INSIDER_LOOKBACK dagen.
     """
     cached = load_cached_congress()
@@ -829,29 +992,17 @@ def fetch_congress_trades(tickers):
     print("  Congress trades ophalen...")
     all_trades = []
 
-    # Senate trades via senate-stock-watcher GitHub
-    senate_url = "https://raw.githubusercontent.com/timothycarambat/senate-stock-watcher-data/master/aggregate/all_transactions.json"
+    # Senate trades via officiële EFTS API
     try:
-        req = urllib.request.Request(senate_url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            senate_trades = json.loads(resp.read())
-        if isinstance(senate_trades, list):
-            # Normalize senate fields to common format
-            for t in senate_trades:
-                all_trades.append({
-                    "ticker":           t.get("ticker", ""),
-                    "transaction_date": t.get("transaction_date", ""),
-                    "transaction_type": t.get("type", ""),
-                    "representative":   t.get("senator", ""),
-                    "party":            "",
-                    "amount":           t.get("amount", ""),
-                })
-            print(f"  Senate: {len(senate_trades)} records geladen.")
+        all_trades.extend(_fetch_senate_trades())
     except Exception as e:
         print(f"  WAARSCHUWING: Senate trades ophalen mislukt: {e}")
 
-    # House trades — geen betrouwbare publieke bulk-JSON beschikbaar
-    # (housestockwatcher.com offline, S3 403, geen werkend alternatief gevonden)
+    # House trades via disclosures-clerk.house.gov
+    try:
+        all_trades.extend(_fetch_house_trades())
+    except Exception as e:
+        print(f"  WAARSCHUWING: House trades ophalen mislukt: {e}")
 
     if not all_trades:
         print("  WAARSCHUWING: Congress trades niet beschikbaar. Congress score = neutraal (50).")
