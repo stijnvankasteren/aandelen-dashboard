@@ -9,6 +9,7 @@ let _tradesSortAsc   = false;
 let _tradesSearchVal = "";
 
 function initTradesTab() {
+  console.log("[Trades] initTradesTab called, insiderData:", typeof insiderData, Object.keys(insiderData || {}).length, "keys");
   if (!_tradesListenersInited) {
     _tradesListenersInited = true;
 
@@ -82,11 +83,15 @@ function _buildTradesRows() {
 
 function _renderTradesTable() {
   const isInsider = _tradesSubtab === "insider";
+  console.log("[Trades] _renderTradesTable isInsider=", isInsider,
+    "insiderData keys:", Object.keys(insiderData || {}).length,
+    "congressData keys:", Object.keys(congressData || {}).length);
 
   document.getElementById("trades-insider-panel").classList.toggle("hidden", !isInsider);
   document.getElementById("trades-congress-panel").classList.toggle("hidden",  isInsider);
 
   let rows = _buildTradesRows();
+  console.log("[Trades] rows built:", rows.length, "after filter:", rows.filter(r => r.buy_count + r.sell_count > 0).length);
 
   if (_tradesSearchVal) {
     rows = rows.filter(r =>
