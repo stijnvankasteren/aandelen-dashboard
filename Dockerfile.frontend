@@ -10,6 +10,7 @@ COPY trading212.js /usr/share/nginx/html/
 COPY degiro.js /usr/share/nginx/html/
 COPY db.js /usr/share/nginx/html/
 COPY auth.js /usr/share/nginx/html/
+COPY trades.js /usr/share/nginx/html/
 COPY data/ /usr/share/nginx/html/data/
 COPY favicon.ico /usr/share/nginx/html/
 
