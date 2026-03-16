@@ -1023,12 +1023,11 @@ def fetch_congress_trades(tickers):
     from datetime import timedelta
     cutoff_dt = date.today() - timedelta(days=INSIDER_LOOKBACK)
     cutoff = cutoff_dt.isoformat()
-    ticker_set = {t.upper() for t in tickers}
     by_ticker = {}
 
     for trade in all_trades:
         raw_ticker = (trade.get("ticker") or "").upper().strip()
-        if raw_ticker not in ticker_set:
+        if not raw_ticker:
             continue
         tx_date = trade.get("transaction_date") or trade.get("disclosure_date") or ""
         try:
@@ -1064,20 +1063,18 @@ def fetch_congress_trades(tickers):
         })
 
     result = {"_date": date.today().isoformat()}
-    for ticker in tickers:
-        trades = by_ticker.get(ticker.upper(), [])
+    for raw_ticker, trades in by_ticker.items():
         buys  = [t for t in trades if t["type"] == "buy"]
         sells = [t for t in trades if t["type"] == "sell"]
         trades_sorted = sorted(trades, key=lambda x: x["date"], reverse=True)
-        result[ticker] = {
+        result[raw_ticker] = {
             "buy_count":  len(buys),
             "sell_count": len(sells),
             "recent":     trades_sorted[:3],
             "score":      round(score_congress(len(buys), len(sells)), 1),
         }
 
-    found = sum(1 for t in tickers if result.get(t, {}).get("buy_count", 0) +
-                                       result.get(t, {}).get("sell_count", 0) > 0)
+    found = len(by_ticker)
     with open(CONGRESS_FILE, "w") as f:
         json.dump(result, f, indent=2)
     print(f"  Congress trades opgeslagen ({found} tickers met activiteit).")

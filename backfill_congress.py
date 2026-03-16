@@ -31,8 +31,6 @@ except ImportError:
 DATA_DIR        = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 BACKFILL_FILE   = os.path.join(DATA_DIR, "congress_backfill.json")
 CONGRESS_FILE   = os.path.join(DATA_DIR, "congress_trades.json")
-UNIVERSE_FILE   = os.path.join(DATA_DIR, "universe.json")
-
 START_YEAR      = 2008
 BATCH_SIZE      = 10       # PDFs per batch
 SLEEP_BETWEEN   = 1.0      # seconden tussen PDFs
@@ -40,18 +38,6 @@ SLEEP_BATCH     = 5.0      # seconden tussen batches
 BASE_URL        = "https://disclosures-clerk.house.gov/public_disc"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-def load_tickers():
-    with open(UNIVERSE_FILE) as f:
-        universe = json.load(f)
-    tickers = set()
-    for idx_data in universe.get("indices", {}).values():
-        for t in idx_data.get("tickers", []):
-            # Alleen pure tickers (geen .AS, .PA etc) — die zijn relevant voor congress
-            if "." not in t:
-                tickers.add(t.upper())
-    return tickers
-
 
 def load_backfill():
     if os.path.exists(BACKFILL_FILE):
@@ -143,11 +129,11 @@ def parse_pdf(doc_id, year, rep_name, filing_date_iso):
     return trades
 
 
-def merge_trades(congress_data, new_trades, tickers):
+def merge_trades(congress_data, new_trades):
     """Voeg nieuwe trades toe aan congress_data (cumulatief per ticker)."""
     for trade in new_trades:
         ticker = trade["ticker"]
-        if ticker not in tickers:
+        if not ticker:
             continue
         if ticker not in congress_data:
             congress_data[ticker] = {"buy_count": 0, "sell_count": 0, "recent": [], "score": 50.0}
@@ -201,7 +187,6 @@ def main():
     all_years    = list(range(START_YEAR, current_year + 1))
 
     state   = load_backfill()
-    tickers = load_tickers()
 
     completed = set(state.get("completed_years", []))
     remaining = [y for y in all_years if y not in completed]
@@ -262,7 +247,7 @@ def main():
 
         try:
             trades = parse_pdf(doc_id, year, rep_name, filing_date.isoformat())
-            merge_trades(congress_data, trades, tickers)
+            merge_trades(congress_data, trades)
             processed.add(doc_id)
             new_trades_total += len(trades)
         except Exception as e:
