@@ -11,6 +11,7 @@ COPY fetch_t212_proxy.py .
 COPY fetch_t212_csv.py .
 COPY fetch_data.py .
 COPY fetch_trades.py .
+COPY update_sp500.py .
 
 # Kopieer inputbestanden naar een aparte map (niet het volume)
 COPY data/universe.json /app/defaults/

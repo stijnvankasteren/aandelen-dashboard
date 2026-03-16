@@ -31,7 +31,7 @@
       ]
     },
     "SP500": {
-      "name": "S&P 500 (Top 50)",
+      "name": "S&P 500 (Top 100)",
       "currency": "USD",
       "tickers": [
         "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL",
@@ -43,7 +43,17 @@
         "MCD", "CSCO", "LIN", "ABT", "ORCL",
         "NKE", "DHR", "NEE", "TXN", "PM",
         "AMD", "QCOM", "RTX", "GE", "NOW",
-        "LOW", "UPS", "AMGN", "ISRG", "MDT"
+        "LOW", "UPS", "AMGN", "ISRG", "MDT",
+        "SPGI", "GS", "CAT", "AXP", "BLK",
+        "SYK", "VRTX", "GILD", "MMC", "PLD",
+        "CB", "TJX", "MO", "C", "BSX",
+        "ADP", "SO", "ETN", "ZTS", "CME",
+        "BMY", "REGN", "SCHW", "DE", "CI",
+        "AON", "DUK", "ITW", "MCO", "WM",
+        "HCA", "MMM", "NOC", "FI", "EMR",
+        "CL", "GD", "APD", "SHW", "TGT",
+        "ICE", "PSA", "USB", "NSC", "FDX",
+        "EQIX", "PNC", "KLAC", "LRCX", "PANW"
       ]
     }
   }
