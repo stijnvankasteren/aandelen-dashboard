@@ -754,21 +754,28 @@ def fetch_insider_trades(tickers, cik_map):
             forms = recent.get("form", [])
             dates = recent.get("filingDate", [])
             accs  = recent.get("accessionNumber", [])
+            descs = recent.get("primaryDocumentDescription", [])
 
-            filings = []
-            for form, fdate, acc in zip(forms, dates, accs):
+            buy_filings  = []
+            sell_filings = []
+            for form, fdate, acc, desc in zip(forms, dates, accs, descs or [""]*len(forms)):
                 if form != "4":
                     continue
                 if fdate < cutoff:
-                    break  # Gesorteerd op datum desc, stop zodra te oud
-                filings.append({"date": fdate, "accession": acc})
+                    break
+                desc_upper = (desc or "").upper()
+                # "S" = sale/sell, "P" = purchase/buy, rest = onbekend → tel als buy
+                if any(w in desc_upper for w in ["SALE", "SELL", " S ", "DISPOSITION"]):
+                    sell_filings.append({"date": fdate, "accession": acc, "type": "sell"})
+                else:
+                    buy_filings.append({"date": fdate, "accession": acc, "type": "buy"})
 
-            count = len(filings)
+            all_filings = sorted(buy_filings + sell_filings, key=lambda x: x["date"], reverse=True)
             result[ticker] = {
-                "buy_count":  count,
-                "sell_count": 0,      # XML parsing vereist extra requests
-                "recent":     filings[:3],
-                "score":      round(score_insider(count, 0), 1),
+                "buy_count":  len(buy_filings),
+                "sell_count": len(sell_filings),
+                "recent":     all_filings[:3],
+                "score":      round(score_insider(len(buy_filings), len(sell_filings)), 1),
             }
             if count > 0:
                 ok_count += 1
