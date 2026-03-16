@@ -144,7 +144,7 @@ function _renderTradesTable() {
     }).join("");
 
     return `<tr>
-      <td class="trades-ticker">${r.ticker}</td>
+      <td class="trades-ticker" onclick="openModal('${r.ticker}')" style="cursor:pointer">${r.ticker}</td>
       <td class="trades-name">${r.name}</td>
       <td><span class="index-badge">${r.index}</span></td>
       <td class="${r.buy_count > 0 ? 'trades-buy' : ''}">${r.buy_count || "—"}</td>
