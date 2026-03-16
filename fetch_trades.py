@@ -9,7 +9,7 @@ import sys
 import os
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Voeg de app-map toe aan het pad zodat we fetch_data kunnen importeren
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -43,7 +43,7 @@ def _cache_age_minutes(filepath):
         )
         if not has_data:
             return None
-        age = (datetime.utcnow() - datetime.fromisoformat(ts)).total_seconds() / 60
+        age = (datetime.now(timezone.utc).replace(tzinfo=None) - datetime.fromisoformat(ts)).total_seconds() / 60
         return age
     except Exception:
         return None
@@ -72,7 +72,7 @@ def main():
         cik_map = fetch_cik_map()
         insider = fetch_insider_trades(tickers, cik_map)
         # Schrijf fetch-tijdstip terug in het bestand
-        insider["_fetched_at"] = datetime.utcnow().isoformat()
+        insider["_fetched_at"] = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
         with open(INSIDER_FILE, "w") as f:
             json.dump(insider, f, indent=2)
     else:
@@ -81,7 +81,7 @@ def main():
     if not congress_fresh:
         print(f"\n[2/2] Congress trades ophalen (cache: {f'{congress_age:.0f}m oud' if congress_age is not None else 'ontbreekt'})...")
         congress = fetch_congress_trades(tickers)
-        congress["_fetched_at"] = datetime.utcnow().isoformat()
+        congress["_fetched_at"] = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
         with open(CONGRESS_FILE, "w") as f:
             json.dump(congress, f, indent=2)
     else:

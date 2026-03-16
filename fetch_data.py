@@ -810,9 +810,17 @@ def load_cached_congress():
     try:
         with open(CONGRESS_FILE) as f:
             data = json.load(f)
-        if data.get("_date") == date.today().isoformat():
-            print("  Congress trades van vandaag al gecached.")
-            return data
+        if data.get("_date") != date.today().isoformat():
+            return None
+        # Alleen als cache ook echt trades bevat
+        has_data = any(
+            isinstance(v, dict) and (v.get("buy_count", 0) + v.get("sell_count", 0)) > 0
+            for k, v in data.items() if not k.startswith("_")
+        )
+        if not has_data:
+            return None
+        print("  Congress trades van vandaag al gecached.")
+        return data
     except Exception:
         pass
     return None
