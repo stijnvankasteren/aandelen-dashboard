@@ -826,10 +826,9 @@ def load_cached_congress():
     return None
 
 
-def _parse_ptr_pdf_text(text, rep_name, filing_date_iso):
-    """Extraheer ticker/type/datum uit de tekst van een House PTR PDF."""
+def _parse_ptr_pdf_text(text, rep_name, filing_date_iso, pdf_url=""):
+    """Extraheer ticker/type/datum uit de tekst van een House/Senate PTR PDF."""
     import re as _re
-    # Patroon: (TICKER) [ST] gevolgd door P of S en datum MM/DD/YYYY
     pattern = _re.compile(
         r"\(([A-Z]{1,5})\)\s*(?:\[[A-Z]+\])?\s*\n?\s*([PS])\s+(\d{1,2}/\d{1,2}/\d{4})",
         _re.MULTILINE,
@@ -851,6 +850,7 @@ def _parse_ptr_pdf_text(text, rep_name, filing_date_iso):
             "representative":   rep_name,
             "party":            "",
             "amount":           "",
+            "pdf_url":          pdf_url,
         })
     return trades
 
@@ -911,7 +911,7 @@ def _fetch_house_trades():
                 pdf_data = resp.read()
             reader = PdfReader(io.BytesIO(pdf_data))
             text = "\n".join(page.extract_text() or "" for page in reader.pages)
-            found = _parse_ptr_pdf_text(text, rep_name, filing_date.isoformat())
+            found = _parse_ptr_pdf_text(text, rep_name, filing_date.isoformat(), pdf_url)
             trades.extend(found)
         except Exception:
             continue
@@ -974,8 +974,7 @@ def _fetch_senate_trades():
                 pdf_data = resp.read()
             reader = PdfReader(io.BytesIO(pdf_data))
             text = "\n".join(page.extract_text() or "" for page in reader.pages)
-            # Senate PDFs hebben een iets ander formaat — probeer hetzelfde patroon
-            found = _parse_ptr_pdf_text(text, rep_name, date.today().isoformat())
+            found = _parse_ptr_pdf_text(text, rep_name, date.today().isoformat(), pdf_link)
             trades.extend(found)
         except Exception:
             continue
@@ -1061,6 +1060,7 @@ def fetch_congress_trades(tickers):
             "party":          trade.get("party", ""),
             "type":           tx_type,
             "amount":         trade.get("amount", ""),
+            "pdf_url":        trade.get("pdf_url", ""),
         })
 
     result = {"_date": date.today().isoformat()}

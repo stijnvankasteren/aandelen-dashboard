@@ -130,11 +130,15 @@ function _renderTradesTable() {
         </span>`;
       } else {
         const typeClass = t.type === "buy" ? "trades-buy" : "trades-sell";
+        const pdfLink = t.pdf_url
+          ? `<a href="${t.pdf_url}" target="_blank" class="trades-filing-link">PTR ↗</a>`
+          : "";
         return `<span class="trades-filing">
           <span class="trades-filing-date">${t.date}</span>
           <span class="trades-rep">${t.representative || "—"}</span>
           <span class="${typeClass}">${t.type === "buy" ? "Koop" : "Verkoop"}</span>
           ${t.amount ? `<span class="trades-amount">${t.amount}</span>` : ""}
+          ${pdfLink}
         </span>`;
       }
     }).join("");

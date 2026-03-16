@@ -138,6 +138,7 @@ def parse_pdf(doc_id, year, rep_name, filing_date_iso):
             "date":     tx_date,
             "rep":      rep_name,
             "amount":   "",
+            "pdf_url":  url,
         })
     return trades
 
@@ -162,6 +163,7 @@ def merge_trades(congress_data, new_trades, tickers):
             "party":          "",
             "type":           trade["type"],
             "amount":         trade["amount"],
+            "pdf_url":        trade.get("pdf_url", ""),
         })
         entry["recent"] = sorted(entry["recent"], key=lambda x: x["date"], reverse=True)[:10]
 
