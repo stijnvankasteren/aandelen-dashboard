@@ -2081,9 +2081,99 @@ tbody td {
   border-radius: 4px;
 }
 
-.pt-llm-score { font-size: 11px; color: var(--muted); }
-.pt-llm-date  { font-size: 11px; color: var(--muted); margin-left: auto; }
-.pt-llm-reason { font-size: 12px; color: var(--text); line-height: 1.4; }
+.pt-llm-score      { font-size: 11px; color: var(--muted); }
+.pt-llm-conviction { font-size: 11px; color: var(--blue-lt); font-weight: 600; }
+.pt-llm-date       { font-size: 11px; color: var(--muted); margin-left: auto; }
+.pt-llm-reason     { font-size: 12px; color: var(--text); line-height: 1.4; margin-top: 4px; }
+
+.pt-llm-full-btn {
+  font-size: 10px;
+  color: var(--blue);
+  background: none;
+  border: 1px solid var(--blue);
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pt-llm-full-btn:hover { background: rgba(56,139,253,0.1); }
+
+.pt-llm-step1 {
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+.pt-llm-fn-flag {
+  font-size: 10px;
+  color: var(--yellow);
+  cursor: help;
+}
+
+.pt-llm-entry-fn {
+  border-color: rgba(210,153,34,0.4) !important;
+  background: rgba(210,153,34,0.04);
+}
+
+/* Volledige analyse overlay */
+.pt-analysis-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.pt-analysis-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 760px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pt-analysis-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.pt-analysis-header button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.pt-analysis-header button:hover { color: var(--text); }
+
+.pt-analysis-body {
+  padding: 16px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
 
 /* Trade action badges */
 .pt-action-badge {
@@ -2094,8 +2184,9 @@ tbody td {
   letter-spacing: 0.3px;
 }
 
-.pt-buy  { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
-.pt-sell { background: rgba(248,81,73,0.12); color: var(--red);   border: 1px solid rgba(248,81,73,0.3); }
+.pt-buy  { background: rgba(63,185,80,0.15);  color: var(--green);  border: 1px solid rgba(63,185,80,0.3); }
+.pt-sell { background: rgba(248,81,73,0.12);  color: var(--red);    border: 1px solid rgba(248,81,73,0.3); }
+.pt-hold { background: rgba(210,153,34,0.12); color: var(--yellow); border: 1px solid rgba(210,153,34,0.3); }
 
 /* Tables */
 .pt-table-wrap, .pt-tradelog-wrap {

@@ -26,7 +26,7 @@
       <button class="tab-btn active" data-tab="rankings">Rankings</button>
       <button class="tab-btn" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="trades">Trades</button>
-      <button class="tab-btn" data-tab="paper-trading">Paper Trading</button>
+      <button class="tab-btn" data-tab="paper-trading">AI Trading</button>
       <button class="tab-btn" data-tab="geschiedenis">Geschiedenis</button>
       <button class="tab-btn" data-tab="account">Account</button>
     </nav>
@@ -607,7 +607,7 @@
     </div>
   </div>
 
-  <!-- ── Paper Trading pagina ───────────────────────────────── -->
+  <!-- ── AI Trading pagina ────────────────────────────────────── -->
   <div id="paper-trading-content" class="hidden">
     <div class="pt-wrapper">
 
@@ -674,7 +674,7 @@
               <input id="pt-max-positions" type="number" class="account-input pt-input" value="5" min="1" max="50">
             </div>
             <div class="pt-setting-row" style="grid-column:1/-1">
-              <label class="pt-label">OpenRouter API-sleutel <span style="color:var(--red)">* verplicht voor LLM check</span></label>
+              <label class="pt-label">OpenRouter API-sleutel <span style="color:var(--red)">* verplicht voor AI check</span></label>
               <input id="pt-openrouter-key" type="password" class="account-input pt-input" placeholder="sk-or-v1-...">
               <span style="font-size:11px;color:var(--muted);margin-top:3px">Haal een gratis sleutel op via <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--blue)">openrouter.ai/keys</a></span>
             </div>
@@ -711,13 +711,13 @@
           <div id="pt-status-msg" class="pt-status-msg"></div>
         </div>
 
-        <!-- LLM Advies log -->
+        <!-- AI Advies log -->
         <div class="pt-panel">
-          <div class="pt-panel-title">LLM Advies Log
+          <div class="pt-panel-title">AI Advies Log
             <span class="pt-panel-sub">verplichte AI-check bij elke mogelijke aankoop</span>
           </div>
           <div id="pt-llm-log" class="pt-llm-log">
-            <div class="pt-llm-empty">Nog geen LLM analyses uitgevoerd.</div>
+            <div class="pt-llm-empty">Nog geen AI analyses uitgevoerd.</div>
           </div>
         </div>
 

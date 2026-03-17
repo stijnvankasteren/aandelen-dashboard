@@ -1,10 +1,10 @@
-/* ── Paper Trading Engine ──────────────────────────────────────
+/* ── AI Trading Engine ─────────────────────────────────────────
    Volledig automatisch systeem dat trades doet op basis van:
    - Rankings scores (RSI, MACD, MA, momentum, fundamentals)
    - Insider trades (SEC Form 4)
    - Congress trades (PTR disclosures)
    - Nieuws sentiment
-   - Optionele LLM check via OpenRouter (ondersteunt Claude, GPT-4o, Gemini, etc.)
+   - Verplichte AI check via OpenRouter (ondersteunt Claude, GPT-4o, Gemini, etc.)
    ──────────────────────────────────────────────────────────── */
 
 // ── State ──────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ function ptRunNow() {
 }
 
 function ptReset() {
-  if (!confirm('Weet je zeker dat je het paper trading portfolio wilt resetten? Alle posities en trades worden gewist.')) return;
+  if (!confirm('Weet je zeker dat je het AI trading portfolio wilt resetten? Alle posities en trades worden gewist.')) return;
   ptStop();
   ptState.portfolio = {
     startCapital: parseFloat(document.getElementById('pt-capital').value) || 100,
@@ -315,23 +315,27 @@ async function ptCheckEntrySignals(rankings, insiderData, congressData, newsData
     const totalCost = shares * price;
     if (totalCost > ptState.portfolio.cash) continue;
 
-    // LLM check is altijd verplicht — zonder key worden aankopen geblokkeerd
+    // AI check is altijd verplicht — zonder key worden aankopen geblokkeerd
     {
-      ptSetStatus(`LLM check voor ${ticker}...`, 'info');
+      ptSetStatus(`AI check voor ${ticker}...`, 'info');
       const llmVerdict = await ptLlmCheck(candidate, combinedScore, insiderData, congressData, newsData);
 
       ptState.llmLog.unshift({
         ticker,
-        date:    new Date().toISOString(),
-        verdict: llmVerdict.buy ? 'KOPEN' : 'NIET KOPEN',
-        reason:  llmVerdict.reason,
-        score:   combinedScore,
+        date:             new Date().toISOString(),
+        verdict:          llmVerdict.verdict || (llmVerdict.buy ? 'BUY' : 'DO NOT BUY'),
+        reason:           llmVerdict.reason,
+        conviction:       llmVerdict.conviction,
+        score:            combinedScore,
+        logBlock:         llmVerdict.logBlock         || null,
+        falseNegative:    llmVerdict.falseNegativeFlag || false,
+        fullResponse:     llmVerdict.fullResponse     || '',
       });
       if (ptState.llmLog.length > 50) ptState.llmLog = ptState.llmLog.slice(0, 50);
       ptRenderLlmLog();
 
       if (!llmVerdict.buy) {
-        console.log(`[PT] LLM adviseert NIET te kopen: ${ticker} — ${llmVerdict.reason}`);
+        console.log(`[PT] AI adviseert NIET te kopen: ${ticker} — ${llmVerdict.reason}`);
         continue;
       }
     }
@@ -449,61 +453,233 @@ async function ptTakeSnapshot() {
   }
 }
 
-// ── LLM Check via OpenRouter ───────────────────────────────────
+// ── AI Check via OpenRouter ────────────────────────────────────
 async function ptLlmCheck(ranking, combinedScore, insiderData, congressData, newsData) {
   const apiKey = ptState.settings.openrouterKey;
   const model  = ptState.settings.openrouterModel || 'anthropic/claude-haiku-4-5';
   if (!apiKey) return { buy: false, reason: 'Geen OpenRouter API-sleutel ingesteld — koop geblokkeerd' };
 
-  const insider  = insiderData[ranking.ticker]  || { buy_count: 0, sell_count: 0 };
-  const congress = congressData[ranking.ticker] || { buy_count: 0, sell_count: 0 };
+  const insider  = insiderData[ranking.ticker]  || { buy_count: 0, sell_count: 0, recent: [] };
+  const congress = congressData[ranking.ticker] || { buy_count: 0, sell_count: 0, recent: [] };
   const news     = newsData[ranking.ticker]     || { articles: [], sentiment_avg: null };
 
-  const recentNews = (news.articles || []).slice(0, 3).map(a =>
-    `- ${a.title} (${a.sentiment || 'neutraal'})`
-  ).join('\n') || 'Geen recent nieuws beschikbaar.';
+  const hasInsider  = insider.buy_count > 0  || insider.sell_count > 0;
+  const hasCongress = congress.buy_count > 0 || congress.sell_count > 0;
 
-  const recentCongress = (congress.recent || []).slice(0, 3).map(t =>
-    `- ${t.representative} (${t.party}): ${t.type} ${t.amount} op ${t.date}`
-  ).join('\n') || 'Geen recente congress trades.';
+  const recentNews = (news.articles || []).slice(0, 5).map(a =>
+    `- ${a.title} [${a.sentiment || 'neutral'}]`
+  ).join('\n') || 'No recent news available.';
 
-  const prompt = `Je bent een professionele aandelenanalist. Analyseer of het verstandig is om dit aandeel te kopen op basis van de volgende data:
+  const recentInsider = hasInsider
+    ? `Buys: ${insider.buy_count} | Sells: ${insider.sell_count} (last 90 days)`
+    : 'No insider trade data available.';
+
+  const recentCongress = hasCongress
+    ? `Buys: ${congress.buy_count} | Sells: ${congress.sell_count} (last 90 days)\n` +
+      (congress.recent || []).slice(0, 5).map(t =>
+        `- ${t.representative} (${t.party}): ${t.type.toUpperCase()} ${t.amount} on ${t.date}`
+      ).join('\n')
+    : 'No congress trade data available.';
+
+  const week52PctFromLow = ranking.week52_low
+    ? (((ranking.price - ranking.week52_low) / ranking.week52_low) * 100).toFixed(1)
+    : 'N/A';
+  const week52PctFromHigh = ranking.week52_high
+    ? (((ranking.price - ranking.week52_high) / ranking.week52_high) * 100).toFixed(1)
+    : 'N/A';
+
+  const systemPrompt = `# MASTER PROMPT — Stock Intelligence Analyst
+
+## Role & Expertise
+You are an elite investment analyst combining the discipline of a hedge fund CIO,
+a forensic researcher, and a quantitative screener. You are analytical, skeptical,
+data-driven, and conservative with confidence. Your goal is not to hype trades,
+but to determine whether buying a specific stock is rational, risk-aware,
+and evidence-based.
+
+---
+
+## Input Data
+You will receive structured stock data containing some or all of the following:
+
+- Ticker, index, sector, current price
+- Momentum (1D / 1M / 3M)
+- Technical indicators (RSI, 50MA, 200MA, 52-week range)
+- Fundamentals (P/E, Forward P/E, revenue growth, earnings growth)
+- Composite score (0–100)
+- Insider trades (90 days): number of buys vs sells
+- Congress trades (90 days): number of buys vs sells, names, amounts, dates
+- Recent news headlines with sentiment labels
+
+---
+
+## Analysis Framework
+
+### STEP 1 — QUICK SCREEN
+Based on composite score, momentum, and sentiment:
+- Is this stock worth deeper analysis? (Pass / Borderline / Reject)
+- Flag any immediate red flags or standout strengths.
+- If clearly not worth pursuing: state why and stop here.
+
+---
+
+### STEP 2 — DEEP STOCK ANALYSIS
+Only proceed if Step 1 result is Pass or Borderline.
+
+**2A. Rankings & Valuation**
+- Is the stock cheap, fairly valued, or stretched based on P/E and Forward P/E?
+- How does valuation compare to sector norms?
+- Any notable analyst upgrades or downgrades implied by the data?
+
+**2B. Technical Picture**
+- Is the stock in an uptrend? (price vs 50MA, 200MA)
+- Is momentum healthy or overextended? (RSI, 1M/3M momentum)
+- Is the entry point attractive or late?
+
+**2C. Fundamentals**
+- Is revenue and earnings growth sustainable?
+- Are there any red flags in the financial profile?
+
+**2D. News Sentiment**
+- What is the overall sentiment signal (Bullish / Neutral / Bearish)?
+- Are there upcoming catalysts or risks visible in the headlines?
+- Has sentiment recently shifted, and if so, why?
+
+---
+
+### STEP 3 — INSIDER & CONGRESS TRADE ANALYSIS
+⚠️ Only perform this step if insider or congress trades are present in the input data.
+If no trades are present, skip entirely and write:
+"No insider or congress trade data available — verdict based on Step 2 only."
+
+**3A. Trader Assessment**
+Classify each trader as High-signal / Medium-signal / Low-signal based on:
+- Direct informational advantage (executive, board member, relevant committee)
+- Trade history: frequency, consistency, past outcomes (if inferable)
+- Possible non-alpha motives: hedging, optics, scheduled/rule-based trades,
+  diversification
+
+**3B. Trade Quality & Structure**
+- Buy or sell? (Buys are generally stronger signals than sells)
+- Trade size: significant or negligible relative to typical transaction size?
+- Instrument: common stock or options (note strike/expiry if available)
+- Timing: does it coincide with earnings, regulation, government contracts,
+  or major announcements?
+- Conviction-based or routine?
+
+**3C. Information Advantage**
+- Could this trader plausibly have material non-public insight?
+- Does the timing suggest anticipation of a specific event?
+- Clearly separate signal from speculation.
+
+**3D. Copy-Trade Risk Factors**
+Explicitly list:
+- Reasons this trade signal might be misleading
+- Unknown or delayed information
+- Market conditions that could negate the thesis
+
+---
+
+### STEP 4 — FINAL VERDICT
+
+**Pillar Scores (1–10):**
+| Pillar                      | Score  |
+|-----------------------------|--------|
+| Technical Analysis          | x/10   |
+| Fundamentals                | x/10   |
+| News Sentiment              | x/10   |
+| Insider / Congress Signal   | x/10 or N/A |
+
+**Overall Conviction Score: XX / 100**
+
+**Investment Thesis (3–5 sentences):**
+Summarise why this stock is or is not a compelling buy right now,
+combining all available signals. Flag any conflicting signals between pillars.
+
+**Suggested Action:**
+- Entry strategy: full position / partial / wait for confirmation
+- Position size: small / moderate / high conviction
+- Key price levels or events to monitor before acting
+- Stop-loss logic if the thesis breaks down
+
+---
+
+## Output Format (STRICT)
+
+STEP 1 — QUICK SCREEN: [Pass / Borderline / Reject + one-line reason]
+
+STEP 2 — DEEP ANALYSIS:
+[Structured findings per sub-section 2A through 2D]
+
+STEP 3 — INSIDER / CONGRESS ANALYSIS:
+[Findings per sub-section 3A through 3D]
+[OR: "N/A — no insider or congress trade data present"]
+
+STEP 4 — FINAL VERDICT:
+[Pillar score table]
+CONVICTION SCORE: XX / 100
+THESIS: [3–5 sentences]
+VERDICT: [BUY | HOLD | DO NOT BUY]
+REASON: [one sentence]
+ACTION: [entry strategy, position size, key levels, stop-loss]
+
+---
+
+## Strict Output Rules
+⚠️ VERDICT must be exactly one of: BUY | HOLD | DO NOT BUY
+No other values are permitted. Do not add qualifiers like "STRONG" or "AVOID".
+If Step 1 returns Reject, skip Steps 2–4 and output VERDICT: DO NOT BUY with reason.
+
+---
+
+## LOG OUTPUT (mandatory, append to every response)
+
+After your VERDICT and ACTION, always output the following block exactly as shown.
+Do not skip fields. Use "N/A" if a value is not available.
+
+LOG:
+  ticker:              [e.g. AAPL]
+  timestamp:           [YYYY-MM-DD HH:MM UTC]
+  composite_score_in:  [xx/100]
+  step1_result:        [Pass | Borderline | Reject]
+  step1_reason:        [one sentence]
+  step2_completed:     [Yes | No]
+  pillar_technical:    [x/10 | N/A]
+  pillar_fundamental:  [x/10 | N/A]
+  pillar_sentiment:    [x/10 | N/A]
+  pillar_insider:      [x/10 | N/A]
+  insider_present:     [Yes | No]
+  congress_present:    [Yes | No]
+  conviction_score:    [xx/100 | N/A]
+  verdict:             [BUY | HOLD | DO NOT BUY]
+  tokens_saved:        [Yes | No]`;
+
+  const userMessage = `## Stock Data
 
 **Ticker:** ${ranking.ticker} (${ranking.name})
-**Index:** ${ranking.index}
-**Sector:** ${ranking.sector || 'onbekend'}
-**Huidige prijs:** €${ranking.price}
-**1D wijziging:** ${ranking.change_1d?.toFixed(2) || 0}%
-**1M momentum:** ${ranking.mom_1m?.toFixed(2) || 0}%
-**3M momentum:** ${ranking.mom_3m?.toFixed(2) || 0}%
+**Index:** ${ranking.index} | **Sector:** ${ranking.sector || 'Unknown'}
+**Current Price:** $${ranking.price} | **1D:** ${ranking.change_1d?.toFixed(2) || 0}% | **1M:** ${ranking.mom_1m?.toFixed(2) || 0}% | **3M:** ${ranking.mom_3m?.toFixed(2) || 0}%
 
-**Technische analyse:**
-- RSI: ${ranking.rsi_value?.toFixed(1) || 'n.v.t.'}
-- 50MA: ${ranking.ma50?.toFixed(2) || 'n.v.t.'} | 200MA: ${ranking.ma200?.toFixed(2) || 'n.v.t.'}
-- Koers vs 52w laag: +${ranking.week52_low ? (((ranking.price - ranking.week52_low) / ranking.week52_low) * 100).toFixed(1) : 'n.v.t.'}%
+**Technical Indicators:**
+- RSI: ${ranking.rsi_value?.toFixed(1) || 'N/A'}
+- 50MA: ${ranking.ma50?.toFixed(2) || 'N/A'} | 200MA: ${ranking.ma200?.toFixed(2) || 'N/A'}
+- 52w Low: $${ranking.week52_low || 'N/A'} (+${week52PctFromLow}%) | 52w High: $${ranking.week52_high || 'N/A'} (${week52PctFromHigh}%)
 
-**Fundamenten:**
-- P/E: ${ranking.pe?.toFixed(1) || 'n.v.t.'} | Forward P/E: ${ranking.forward_pe?.toFixed(1) || 'n.v.t.'}
-- Omzetgroei: ${ranking.revenue_growth !== undefined ? (ranking.revenue_growth * 100).toFixed(1) + '%' : 'n.v.t.'}
-- Winstgroei: ${ranking.earnings_growth !== undefined ? (ranking.earnings_growth * 100).toFixed(1) + '%' : 'n.v.t.'}
+**Fundamentals:**
+- P/E: ${ranking.pe?.toFixed(1) || 'N/A'} | Forward P/E: ${ranking.forward_pe?.toFixed(1) || 'N/A'}
+- Revenue Growth: ${ranking.revenue_growth !== undefined ? (ranking.revenue_growth * 100).toFixed(1) + '%' : 'N/A'}
+- Earnings Growth: ${ranking.earnings_growth !== undefined ? (ranking.earnings_growth * 100).toFixed(1) + '%' : 'N/A'}
 
-**Composite score:** ${combinedScore.toFixed(1)}/100
+**Composite Score:** ${combinedScore.toFixed(1)} / 100
 
-**Insider trades (90 dagen):**
-- Aankopen: ${insider.buy_count} | Verkopen: ${insider.sell_count}
+**Insider Trades (90 days):**
+${recentInsider}
 
-**Congress trades (90 dagen):**
-- Aankopen: ${congress.buy_count} | Verkopen: ${congress.sell_count}
+**Congress Trades (90 days):**
 ${recentCongress}
 
-**Recent nieuws (sentiment):**
-${recentNews}
-
-Geef een bondige analyse in maximaal 3 zinnen. Sluit af met een duidelijk KOPEN of NIET KOPEN advies, gevolgd door de reden in één zin.
-
-Antwoordformaat:
-VERDICT: [KOPEN|NIET KOPEN]
-REDEN: [één zin]`;
+**Recent News:**
+${recentNews}`;
 
   try {
     const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -512,12 +688,15 @@ REDEN: [één zin]`;
         'Content-Type':  'application/json',
         'Authorization': `Bearer ${apiKey}`,
         'HTTP-Referer':  window.location.origin,
-        'X-Title':       'Portfolio Analyser Paper Trading',
+        'X-Title':       'Portfolio Analyser AI Trading',
       },
       body: JSON.stringify({
         model:      model,
-        max_tokens: 300,
-        messages:   [{ role: 'user', content: prompt }],
+        max_tokens: 1200,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: userMessage  },
+        ],
       }),
     });
 
@@ -529,20 +708,45 @@ REDEN: [één zin]`;
     const data    = await resp.json();
     const content = data.choices?.[0]?.message?.content || '';
 
-    // Parse VERDICT en REDEN
-    const verdictMatch = content.match(/VERDICT:\s*(KOPEN|NIET KOPEN)/i);
-    const redenMatch   = content.match(/REDEN:\s*(.+)/i);
+    // Parse VERDICT (BUY / HOLD / DO NOT BUY), REASON, CONVICTION SCORE
+    const verdictMatch = content.match(/VERDICT:\s*(BUY|HOLD|DO NOT BUY)/i);
+    const reasonMatch  = content.match(/REASON:\s*(.+)/i);
+    const convMatch    = content.match(/CONVICTION SCORE:\s*(\d+)/i);
 
-    const buy    = verdictMatch ? verdictMatch[1].toUpperCase() === 'KOPEN' : true;
-    const reason = redenMatch   ? redenMatch[1].trim() : content.slice(0, 150);
+    const verdictStr = verdictMatch ? verdictMatch[1].toUpperCase() : 'HOLD';
+    const buy        = verdictStr === 'BUY';
+    const reason     = reasonMatch ? reasonMatch[1].trim() : content.slice(0, 200);
+    const conviction = convMatch   ? parseInt(convMatch[1]) : null;
 
-    return { buy, reason, fullResponse: content };
+    // Parse structured LOG block
+    const logBlock = ptParseLogBlock(content);
+
+    // False-negative detectie: DO NOT BUY maar conviction >= 50
+    const falseNegativeFlag = !buy && conviction !== null && conviction >= 50;
+    if (falseNegativeFlag) {
+      console.warn(`[PT] ⚠️ Mogelijke false negative: ${ranking.ticker} — VERDICT=${verdictStr} maar conviction=${conviction}/100`);
+    }
+
+    return { buy, verdict: verdictStr, reason, conviction, logBlock, falseNegativeFlag, fullResponse: content };
 
   } catch (e) {
-    console.error('[PT] LLM check fout:', e);
-    // Bij fout: blokkeer koop (fail safe — geen geld riskeren zonder LLM check)
-    return { buy: false, reason: `LLM niet beschikbaar (${e.message}) — koop geblokkeerd` };
+    console.error('[PT] AI check fout:', e);
+    return { buy: false, verdict: 'DO NOT BUY', reason: `AI niet beschikbaar (${e.message}) — koop geblokkeerd` };
   }
+}
+
+// ── LOG block parser ───────────────────────────────────────────
+function ptParseLogBlock(content) {
+  const logMatch = content.match(/LOG:\s*\n([\s\S]+?)(?:\n\n|$)/);
+  if (!logMatch) return null;
+
+  const log = {};
+  const lines = logMatch[1].split('\n');
+  for (const line of lines) {
+    const m = line.match(/^\s+(\w+):\s*(.+)/);
+    if (m) log[m[1].trim()] = m[2].trim();
+  }
+  return Object.keys(log).length > 0 ? log : null;
 }
 
 // ── Render functies ────────────────────────────────────────────
@@ -674,23 +878,72 @@ function ptRenderLlmLog() {
   const logEl = document.getElementById('pt-llm-log');
 
   if (log.length === 0) {
-    logEl.innerHTML = '<div class="pt-llm-empty">Nog geen LLM analyses uitgevoerd.</div>';
+    logEl.innerHTML = '<div class="pt-llm-empty">Nog geen AI analyses uitgevoerd.</div>';
     return;
   }
 
-  logEl.innerHTML = log.slice(0, 20).map(entry => {
-    const date    = new Date(entry.date).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' });
-    const isKopen = entry.verdict === 'KOPEN';
-    return `<div class="pt-llm-entry">
+  logEl.innerHTML = log.slice(0, 20).map((entry, i) => {
+    const date       = new Date(entry.date).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' });
+    const verdict    = entry.verdict || 'UNKNOWN';
+    const isBuy      = verdict === 'BUY';
+    const isHold     = verdict === 'HOLD';
+    const badgeCls   = isBuy ? 'pt-buy' : isHold ? 'pt-hold' : 'pt-sell';
+    const conviction = entry.conviction !== null && entry.conviction !== undefined
+      ? `<span class="pt-llm-conviction">conviction: ${entry.conviction}/100</span>`
+      : '';
+    const fnFlag = entry.falseNegative
+      ? `<span class="pt-llm-fn-flag" title="Mogelijke false negative: DO NOT BUY maar conviction ≥ 50">⚠️ false neg?</span>`
+      : '';
+    const step1 = entry.logBlock?.step1_result
+      ? `<span class="pt-llm-step1">step1: ${entry.logBlock.step1_result}</span>`
+      : '';
+    const fullBtn = entry.fullResponse
+      ? `<button class="pt-llm-full-btn" onclick="ptShowFullAnalysis(${i})">volledige analyse ↗</button>`
+      : '';
+    return `<div class="pt-llm-entry ${entry.falseNegative ? 'pt-llm-entry-fn' : ''}">
       <div class="pt-llm-header">
         <strong>${entry.ticker}</strong>
-        <span class="pt-llm-verdict ${isKopen ? 'pt-buy' : 'pt-sell'}">${entry.verdict}</span>
+        <span class="pt-llm-verdict ${badgeCls}">${verdict}</span>
         <span class="pt-llm-score">score: ${entry.score?.toFixed(1) || '—'}</span>
+        ${conviction}
+        ${step1}
+        ${fnFlag}
         <span class="pt-llm-date">${date}</span>
+        ${fullBtn}
       </div>
       <div class="pt-llm-reason">${entry.reason}</div>
     </div>`;
   }).join('');
+}
+
+function ptShowFullAnalysis(index) {
+  const entry = ptState.llmLog[index];
+  if (!entry || !entry.fullResponse) return;
+
+  // Toon in een overlay modal
+  let overlay = document.getElementById('pt-analysis-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'pt-analysis-overlay';
+    overlay.className = 'pt-analysis-overlay';
+    overlay.innerHTML = `
+      <div class="pt-analysis-modal">
+        <div class="pt-analysis-header">
+          <span id="pt-analysis-title"></span>
+          <button onclick="document.getElementById('pt-analysis-overlay').classList.add('hidden')">✕</button>
+        </div>
+        <pre id="pt-analysis-body" class="pt-analysis-body"></pre>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) overlay.classList.add('hidden');
+    });
+  }
+
+  document.getElementById('pt-analysis-title').textContent =
+    `${entry.ticker} — AI Analyse (${new Date(entry.date).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' })})`;
+  document.getElementById('pt-analysis-body').textContent = entry.fullResponse;
+  overlay.classList.remove('hidden');
 }
 
 function ptRenderPerfChart() {
