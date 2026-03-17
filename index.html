@@ -26,6 +26,7 @@
       <button class="tab-btn active" data-tab="rankings">Rankings</button>
       <button class="tab-btn" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="trades">Trades</button>
+      <button class="tab-btn" data-tab="paper-trading">Paper Trading</button>
       <button class="tab-btn" data-tab="geschiedenis">Geschiedenis</button>
       <button class="tab-btn" data-tab="account">Account</button>
     </nav>
@@ -606,6 +607,186 @@
     </div>
   </div>
 
+  <!-- ── Paper Trading pagina ───────────────────────────────── -->
+  <div id="paper-trading-content" class="hidden">
+    <div class="pt-wrapper">
+
+      <!-- Header stats bar -->
+      <div class="pt-stats-bar" id="pt-stats-bar">
+        <div class="pt-stat">
+          <div class="pt-stat-label">Startkapitaal</div>
+          <div class="pt-stat-value" id="pt-stat-start">—</div>
+        </div>
+        <div class="pt-stat">
+          <div class="pt-stat-label">Huidig Vermogen</div>
+          <div class="pt-stat-value" id="pt-stat-total">—</div>
+        </div>
+        <div class="pt-stat">
+          <div class="pt-stat-label">Beschikbaar Saldo</div>
+          <div class="pt-stat-value" id="pt-stat-cash">—</div>
+        </div>
+        <div class="pt-stat">
+          <div class="pt-stat-label">Beleggingen</div>
+          <div class="pt-stat-value" id="pt-stat-invested">—</div>
+        </div>
+        <div class="pt-stat">
+          <div class="pt-stat-label">Totaal Rendement</div>
+          <div class="pt-stat-value" id="pt-stat-return">—</div>
+        </div>
+        <div class="pt-stat">
+          <div class="pt-stat-label">Actief Sinds</div>
+          <div class="pt-stat-value" id="pt-stat-since">—</div>
+        </div>
+      </div>
+
+      <!-- Twee kolommen: instellingen + status -->
+      <div class="pt-top-grid">
+
+        <!-- Automatisch trading systeem instellingen -->
+        <div class="pt-panel">
+          <div class="pt-panel-title">Automatisch Systeem
+            <span id="pt-engine-badge" class="pt-badge pt-badge-off">GESTOPT</span>
+          </div>
+
+          <div class="pt-settings-grid">
+            <div class="pt-setting-row">
+              <label class="pt-label">Startkapitaal (€)</label>
+              <input id="pt-capital" type="number" class="account-input pt-input" value="100" min="10" step="10">
+            </div>
+            <div class="pt-setting-row">
+              <label class="pt-label">Max positie per aandeel (%)</label>
+              <input id="pt-max-position" type="number" class="account-input pt-input" value="20" min="1" max="100">
+            </div>
+            <div class="pt-setting-row">
+              <label class="pt-label">Min. score om te kopen</label>
+              <input id="pt-min-score" type="number" class="account-input pt-input" value="65" min="0" max="100">
+            </div>
+            <div class="pt-setting-row">
+              <label class="pt-label">Stop-loss (%)</label>
+              <input id="pt-stop-loss" type="number" class="account-input pt-input" value="10" min="1" max="50">
+            </div>
+            <div class="pt-setting-row">
+              <label class="pt-label">Take-profit (%)</label>
+              <input id="pt-take-profit" type="number" class="account-input pt-input" value="25" min="1" max="200">
+            </div>
+            <div class="pt-setting-row">
+              <label class="pt-label">Max. aantal posities</label>
+              <input id="pt-max-positions" type="number" class="account-input pt-input" value="5" min="1" max="50">
+            </div>
+            <div class="pt-setting-row" style="grid-column:1/-1">
+              <label class="pt-label">OpenRouter API-sleutel <span style="color:var(--red)">* verplicht voor LLM check</span></label>
+              <input id="pt-openrouter-key" type="password" class="account-input pt-input" placeholder="sk-or-v1-...">
+              <span style="font-size:11px;color:var(--muted);margin-top:3px">Haal een gratis sleutel op via <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--blue)">openrouter.ai/keys</a></span>
+            </div>
+            <div class="pt-setting-row">
+              <label class="pt-label">Model</label>
+              <select id="pt-openrouter-model" class="account-select pt-input">
+                <option value="anthropic/claude-haiku-4-5" selected>Claude Haiku 4.5 (snel &amp; goedkoop)</option>
+                <option value="anthropic/claude-sonnet-4-5">Claude Sonnet 4.5</option>
+                <option value="anthropic/claude-opus-4">Claude Opus 4</option>
+                <option value="openai/gpt-4o-mini">GPT-4o Mini</option>
+                <option value="openai/gpt-4o">GPT-4o</option>
+                <option value="google/gemini-flash-1.5">Gemini Flash 1.5</option>
+                <option value="google/gemini-pro-1.5">Gemini Pro 1.5</option>
+                <option value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B</option>
+              </select>
+            </div>
+            <div class="pt-setting-row">
+              <label class="pt-label">Signals gebruiken</label>
+              <div class="pt-checkboxes">
+                <label class="pt-checkbox"><input type="checkbox" id="pt-use-rankings" checked> Rankings</label>
+                <label class="pt-checkbox"><input type="checkbox" id="pt-use-insider" checked> Insider trades</label>
+                <label class="pt-checkbox"><input type="checkbox" id="pt-use-congress" checked> Congress trades</label>
+                <label class="pt-checkbox"><input type="checkbox" id="pt-use-news" checked> Nieuws sentiment</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-actions">
+            <button id="pt-start-btn" class="btn-primary" onclick="ptStart()">Systeem Starten</button>
+            <button id="pt-stop-btn" class="btn-danger hidden" onclick="ptStop()">Systeem Stoppen</button>
+            <button class="btn-secondary" onclick="ptRunNow()">Nu uitvoeren</button>
+            <button class="btn-secondary" onclick="ptReset()">Resetten</button>
+          </div>
+          <div id="pt-status-msg" class="pt-status-msg"></div>
+        </div>
+
+        <!-- LLM Advies log -->
+        <div class="pt-panel">
+          <div class="pt-panel-title">LLM Advies Log
+            <span class="pt-panel-sub">verplichte AI-check bij elke mogelijke aankoop</span>
+          </div>
+          <div id="pt-llm-log" class="pt-llm-log">
+            <div class="pt-llm-empty">Nog geen LLM analyses uitgevoerd.</div>
+          </div>
+        </div>
+
+      </div><!-- /.pt-top-grid -->
+
+      <!-- Portfolio posities -->
+      <div class="pt-panel" style="margin-top:16px">
+        <div class="pt-panel-title">Huidige Posities <span id="pt-positions-count" class="pt-panel-sub"></span></div>
+        <div class="pt-table-wrap">
+          <table class="pt-table" id="pt-positions-table">
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Naam</th>
+                <th>Gekocht op</th>
+                <th>Koopprijs</th>
+                <th>Huidig</th>
+                <th>Aandelen</th>
+                <th>Waarde</th>
+                <th>P&amp;L</th>
+                <th>P&amp;L %</th>
+                <th>Score</th>
+                <th>Actie</th>
+              </tr>
+            </thead>
+            <tbody id="pt-positions-tbody"></tbody>
+          </table>
+        </div>
+        <div id="pt-positions-empty" class="pt-empty">Geen posities. Start het systeem om automatisch te beginnen.</div>
+      </div>
+
+      <!-- Performance grafiek + trade log -->
+      <div class="pt-bottom-grid">
+
+        <!-- Portfolio waarde over tijd -->
+        <div class="pt-panel">
+          <div class="pt-panel-title">Portfolio Waarde Over Tijd</div>
+          <div class="pt-chart-wrap">
+            <canvas id="pt-perf-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Trade log -->
+        <div class="pt-panel">
+          <div class="pt-panel-title">Trade Log <span id="pt-tradelog-count" class="pt-panel-sub"></span></div>
+          <div class="pt-tradelog-wrap">
+            <table class="pt-table pt-table-sm">
+              <thead>
+                <tr>
+                  <th>Datum</th>
+                  <th>Actie</th>
+                  <th>Ticker</th>
+                  <th>Prijs</th>
+                  <th>Aandelen</th>
+                  <th>Totaal</th>
+                  <th>Reden</th>
+                </tr>
+              </thead>
+              <tbody id="pt-tradelog-tbody"></tbody>
+            </table>
+          </div>
+          <div id="pt-tradelog-empty" class="pt-empty">Nog geen trades.</div>
+        </div>
+
+      </div><!-- /.pt-bottom-grid -->
+
+    </div><!-- /.pt-wrapper -->
+  </div><!-- /#paper-trading-content -->
+
 </div><!-- /#app-root -->
 
   <script src="trading212.js"></script>
@@ -616,5 +797,6 @@
   <script src="dashboard.js"></script>
   <script src="account.js"></script>
   <script src="trades.js"></script>
+  <script src="paper_trading.js"></script>
 </body>
 </html>

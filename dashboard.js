@@ -1179,16 +1179,18 @@ function setupDashboardTab() {
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       const tab = btn.dataset.tab;
-      const mainContent    = document.getElementById("main-content");
-      const dashContent    = document.getElementById("dashboard-content");
-      const accountContent = document.getElementById("account-content");
-      const geschContent   = document.getElementById("geschiedenis-content");
-      const tradesContent  = document.getElementById("trades-content");
+      const mainContent       = document.getElementById("main-content");
+      const dashContent       = document.getElementById("dashboard-content");
+      const accountContent    = document.getElementById("account-content");
+      const geschContent      = document.getElementById("geschiedenis-content");
+      const tradesContent     = document.getElementById("trades-content");
+      const paperContent      = document.getElementById("paper-trading-content");
       mainContent.classList.add("hidden");
       dashContent.classList.add("hidden");
       if (accountContent) accountContent.classList.add("hidden");
       if (geschContent)   geschContent.classList.add("hidden");
       if (tradesContent)  tradesContent.classList.add("hidden");
+      if (paperContent)   paperContent.classList.add("hidden");
 
       if (tab === "rankings") {
         mainContent.classList.remove("hidden");
@@ -1199,6 +1201,9 @@ function setupDashboardTab() {
       } else if (tab === "trades") {
         if (tradesContent) tradesContent.classList.remove("hidden");
         if (typeof initTradesTab === "function") initTradesTab();
+      } else if (tab === "paper-trading") {
+        if (paperContent) paperContent.classList.remove("hidden");
+        if (typeof ptInit === "function") ptInit();
       } else if (tab === "geschiedenis") {
         if (geschContent) geschContent.classList.remove("hidden");
         // Herlaad transacties vanuit server-DB
