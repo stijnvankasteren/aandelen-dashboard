@@ -7,8 +7,6 @@
    - Optionele LLM check via OpenRouter (ondersteunt Claude, GPT-4o, Gemini, etc.)
    ──────────────────────────────────────────────────────────── */
 
-'use strict';
-
 // ── State ──────────────────────────────────────────────────────
 let ptState = {
   running:     false,
@@ -317,7 +315,6 @@ async function ptCheckEntrySignals(rankings, insiderData, congressData, newsData
     const totalCost = shares * price;
     if (totalCost > ptState.portfolio.cash) continue;
 
-    // LLM check indien ingeschakeld
     // LLM check is altijd verplicht — zonder key worden aankopen geblokkeerd
     {
       ptSetStatus(`LLM check voor ${ticker}...`, 'info');
