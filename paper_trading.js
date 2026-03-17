@@ -9,8 +9,9 @@
 
 // ── State ──────────────────────────────────────────────────────
 let ptState = {
-  running:     false,
-  intervalId:  null,
+  running:          false,
+  intervalId:       null,
+  priceRefreshId:   null,   // elke 15 minuten posities/stats opnieuw renderen
   portfolio: {
     startCapital: 100,
     cash:         100,
@@ -41,6 +42,18 @@ function ptInit() {
   ptLoadFromStorage();
   ptRenderAll();
   ptBindSettings();
+  ptStartPriceRefresh();
+}
+
+// ── Prijs refresh elke 15 minuten ──────────────────────────────
+function ptStartPriceRefresh() {
+  // Voorkom dubbele intervals bij herhaald tab-bezoek
+  if (ptState.priceRefreshId) clearInterval(ptState.priceRefreshId);
+  ptState.priceRefreshId = setInterval(async () => {
+    if (Object.keys(ptState.portfolio.positions).length === 0) return;
+    await ptRenderStats();
+    await ptRenderPositions();
+  }, 15 * 60 * 1000);
 }
 
 // ── Storage ────────────────────────────────────────────────────
@@ -125,7 +138,8 @@ function ptStart() {
 
 function ptStop() {
   ptState.running = false;
-  if (ptState.intervalId) { clearInterval(ptState.intervalId); ptState.intervalId = null; }
+  if (ptState.intervalId)     { clearInterval(ptState.intervalId);     ptState.intervalId     = null; }
+  if (ptState.priceRefreshId) { clearInterval(ptState.priceRefreshId); ptState.priceRefreshId = null; }
 
   document.getElementById('pt-start-btn').classList.remove('hidden');
   document.getElementById('pt-stop-btn').classList.add('hidden');
