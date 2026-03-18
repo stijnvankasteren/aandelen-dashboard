@@ -350,23 +350,58 @@ async function ptCheckEntrySignals(rankings, insiderData, congressData, newsData
   const maxNewPositions = s.maxPositions - numPositions;
   let   bought          = 0;
 
-  // Sorteer op composite score (hoogste eerst)
-  const candidates = rankings
-    .filter(r => {
-      if (positions[r.ticker]) return false; // al in bezit
-      if (s.useRankings && r.composite_score < s.minScore) return false;
-      return true;
-    })
-    .sort((a, b) => b.composite_score - a.composite_score);
+  // Bouw een map van alle rankings voor snelle lookup
+  const rankMap = {};
+  for (const r of rankings) rankMap[r.ticker] = r;
+
+  // 1. Rankings-kandidaten: boven minScore
+  const rankingCandidates = rankings.filter(r => {
+    if (positions[r.ticker]) return false;
+    if (s.useRankings && r.composite_score < s.minScore) return false;
+    return true;
+  });
+
+  // 2. Insider/congress-kandidaten: tickers met recente buys die NIET al in de
+  //    rankings-kandidaten zitten (te lage score, maar sterke trade-signalen)
+  const rankingCandidateTickers = new Set(rankingCandidates.map(r => r.ticker));
+  const extraTickers = new Set();
+
+  if (s.useInsider) {
+    for (const [ticker, data] of Object.entries(insiderData)) {
+      if (ticker === '_date') continue;
+      if (positions[ticker]) continue;
+      if (rankingCandidateTickers.has(ticker)) continue;
+      if (data.buy_count > 0 && rankMap[ticker]) extraTickers.add(ticker);
+    }
+  }
+  if (s.useCongress) {
+    for (const [ticker, data] of Object.entries(congressData)) {
+      if (ticker === '_date') continue;
+      if (positions[ticker]) continue;
+      if (rankingCandidateTickers.has(ticker)) continue;
+      if (data.buy_count > 0 && rankMap[ticker]) extraTickers.add(ticker);
+    }
+  }
+
+  const extraCandidates = [...extraTickers].map(t => rankMap[t]);
+
+  // Combineer: rankings-kandidaten eerst (hoge score), daarna insider/congress-extra's
+  const candidates = [
+    ...rankingCandidates.sort((a, b) => b.composite_score - a.composite_score),
+    ...extraCandidates.sort((a, b) => b.composite_score - a.composite_score),
+  ];
 
   for (const candidate of candidates) {
     if (bought >= maxNewPositions) break;
 
     const ticker = candidate.ticker;
+    const isExtraCandidate = !rankingCandidateTickers.has(ticker);
 
     // Bereken gecombineerde score op basis van actieve signalen
     const combinedScore = ptComputeCombinedScore(candidate, insiderData, congressData, newsData);
-    if (combinedScore < s.minScore) continue;
+    // Extra insider/congress-kandidaten mogen door ook als combined score lager is —
+    // de AI beslist op basis van de trade-signalen
+    if (!isExtraCandidate && combinedScore < s.minScore) continue;
 
     // Bereken hoeveel we kunnen kopen
     const maxAmount = ptState.portfolio.cash * (s.maxPositionPct / 100);
@@ -408,8 +443,11 @@ async function ptCheckEntrySignals(rankings, insiderData, congressData, newsData
     }
 
     // Koop uitvoeren
+    const insiderBuys  = insiderData[ticker]?.buy_count  || 0;
+    const congressBuys = congressData[ticker]?.buy_count || 0;
+    const sourceLabel  = isExtraCandidate ? '[insider/congress signaal] ' : '';
     ptExecuteBuy(ticker, candidate.name, candidate.index, price, shares,
-      `Score ${combinedScore.toFixed(1)}, insider: ${candidate.insider_buy_count || 0} buys, congress: ${candidate.congress_buy_count || 0} buys`);
+      `${sourceLabel}Score ${combinedScore.toFixed(1)}, insider: ${insiderBuys} buys, congress: ${congressBuys} buys`);
     bought++;
   }
 }
