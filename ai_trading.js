@@ -38,11 +38,23 @@ let ptState = {
 };
 
 // ── Init ───────────────────────────────────────────────────────
-function ptInit() {
-  ptLoadFromStorage();
+async function ptInit() {
+  await ptLoadFromStorage();
   ptRenderAll();
   ptBindSettings();
   ptStartPriceRefresh();
+  // Auto-restart als het systeem actief was bij vorige sessie
+  if (ptState._savedRunning && ptState.portfolio.startDate) {
+    console.log('[PT] Auto-restart: systeem was actief, hervatten...');
+    ptState.running = true;
+    document.getElementById('pt-start-btn').classList.add('hidden');
+    document.getElementById('pt-stop-btn').classList.remove('hidden');
+    document.getElementById('pt-engine-badge').textContent = 'ACTIEF';
+    document.getElementById('pt-engine-badge').className   = 'pt-badge pt-badge-on';
+    ptSetStatus('Systeem hervat (was actief bij vorige sessie) — analyse wordt uitgevoerd...', 'info');
+    ptRunCycle();
+    ptState.intervalId = setInterval(ptRunCycle, 24 * 60 * 60 * 1000);
+  }
 }
 
 // ── Prijs refresh elke 15 minuten ──────────────────────────────
@@ -56,23 +68,28 @@ function ptStartPriceRefresh() {
   }, 15 * 60 * 1000);
 }
 
-// ── Storage ────────────────────────────────────────────────────
-function ptSave() {
+// ── Storage (server-side via Auth API) ─────────────────────────
+async function ptSave() {
+  if (!Auth.isLoggedIn()) return;
   try {
-    localStorage.setItem('pt_portfolio', JSON.stringify(ptState.portfolio));
-    localStorage.setItem('pt_settings',  JSON.stringify(ptState.settings));
-    localStorage.setItem('pt_llmlog',    JSON.stringify(ptState.llmLog));
+    await Auth.saveAiTrading({
+      pt_portfolio: ptState.portfolio,
+      pt_settings:  ptState.settings,
+      pt_llmlog:    ptState.llmLog,
+      pt_running:   ptState.running,
+    });
   } catch(e) { console.warn('[PT] save error', e); }
 }
 
-function ptLoadFromStorage() {
+async function ptLoadFromStorage() {
+  if (!Auth.isLoggedIn()) return;
   try {
-    const p = localStorage.getItem('pt_portfolio');
-    const s = localStorage.getItem('pt_settings');
-    const l = localStorage.getItem('pt_llmlog');
-    if (p) ptState.portfolio = { ...ptState.portfolio, ...JSON.parse(p) };
-    if (s) ptState.settings  = { ...ptState.settings,  ...JSON.parse(s) };
-    if (l) ptState.llmLog    = JSON.parse(l);
+    const data = await Auth.loadAiTrading();
+    if (data.pt_portfolio) ptState.portfolio = { ...ptState.portfolio, ...data.pt_portfolio };
+    if (data.pt_settings)  ptState.settings  = { ...ptState.settings,  ...data.pt_settings };
+    if (data.pt_llmlog)    ptState.llmLog    = data.pt_llmlog;
+    // pt_running wordt apart afgehandeld in ptInit voor auto-restart
+    ptState._savedRunning = !!data.pt_running;
   } catch(e) { console.warn('[PT] load error', e); }
 }
 
@@ -108,7 +125,7 @@ function ptReadSettings() {
 }
 
 // ── Start / Stop ───────────────────────────────────────────────
-function ptStart() {
+async function ptStart() {
   ptReadSettings();
 
   const capitalInput = parseFloat(document.getElementById('pt-capital').value);
@@ -129,14 +146,14 @@ function ptStart() {
   document.getElementById('pt-engine-badge').className     = 'pt-badge pt-badge-on';
 
   ptSetStatus('Systeem gestart — eerste analyse wordt uitgevoerd...', 'info');
-  ptSave();
+  await ptSave();
 
   // Eerste run direct, daarna dagelijks (elke 24 uur)
   ptRunCycle();
   ptState.intervalId = setInterval(ptRunCycle, 24 * 60 * 60 * 1000);
 }
 
-function ptStop() {
+async function ptStop() {
   ptState.running = false;
   if (ptState.intervalId)     { clearInterval(ptState.intervalId);     ptState.intervalId     = null; }
   if (ptState.priceRefreshId) { clearInterval(ptState.priceRefreshId); ptState.priceRefreshId = null; }
@@ -146,7 +163,7 @@ function ptStop() {
   document.getElementById('pt-engine-badge').textContent = 'GESTOPT';
   document.getElementById('pt-engine-badge').className   = 'pt-badge pt-badge-off';
   ptSetStatus('Systeem gestopt.', 'muted');
-  ptSave();
+  await ptSave();
 }
 
 function ptRunNow() {
@@ -155,9 +172,9 @@ function ptRunNow() {
   ptRunCycle();
 }
 
-function ptReset() {
+async function ptReset() {
   if (!confirm('Weet je zeker dat je het AI trading portfolio wilt resetten? Alle posities en trades worden gewist.')) return;
-  ptStop();
+  await ptStop();
   ptState.portfolio = {
     startCapital: parseFloat(document.getElementById('pt-capital').value) || 100,
     cash:         parseFloat(document.getElementById('pt-capital').value) || 100,
@@ -167,7 +184,7 @@ function ptReset() {
     snapshots:    [],
   };
   ptState.llmLog = [];
-  ptSave();
+  await ptSave();
   ptRenderAll();
   ptSetStatus('Portfolio gereset.', 'muted');
 }
@@ -201,7 +218,7 @@ async function ptRunCycle() {
     // 3. Sla dagelijkse snapshot op voor performance grafiek
     ptTakeSnapshot();
 
-    ptSave();
+    await ptSave();
     ptRenderAll();
     ptSetStatus(`Analyse compleet om ${new Date().toLocaleTimeString('nl-NL')}. Volgende dagelijkse check over 24 uur.`, 'ok');
 
@@ -1013,7 +1030,7 @@ function ptRenderPerfChart() {
 async function ptManualSell(ticker, price) {
   if (!confirm(`Wil je ${ticker} handmatig verkopen @ €${price.toFixed(2)}?`)) return;
   ptExecuteSell(ticker, price, 'Handmatig verkocht');
-  ptSave();
+  await ptSave();
   await ptRenderAll();
 }
 
@@ -1043,7 +1060,7 @@ function ptSetStatus(msg, type = 'info') {
 
 // ── Tab activatie hook ─────────────────────────────────────────
 // Wordt aangeroepen vanuit app.js wanneer de tab actief wordt
-function onPaperTradingTabActivated() {
-  ptLoadFromStorage();
+async function onAiTradingTabActivated() {
+  await ptLoadFromStorage();
   ptRenderAll();
 }

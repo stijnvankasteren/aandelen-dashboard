@@ -828,6 +828,41 @@ class ProxyHandler(BaseHTTPRequestHandler):
         threading.Thread(target=_run, daemon=True).start()
         self._json(200, {"status": "gestart", "message": f"Dagelijkse CSV fetch gestart voor {len(users)} gebruiker(s)."})
 
+    # ── AI trading endpoints ──────────────────────────────────
+
+    def _handle_ai_trading_get(self):
+        """Haal AI trading state op (portfolio, settings, llmlog, running)."""
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."}); return
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT key, value FROM settings WHERE user_id = ? AND key IN "
+                "('pt_portfolio','pt_settings','pt_llmlog','pt_running')",
+                (user["id"],)
+            ).fetchall()
+        result = {r["key"]: json.loads(r["value"]) for r in rows}
+        self._json(200, result)
+
+    def _handle_ai_trading_post(self):
+        """Sla AI trading state op (portfolio, settings, llmlog, running)."""
+        user = self._auth_user()
+        if not user:
+            self._json(401, {"error": "Niet ingelogd."}); return
+        body = json.loads(self._read_body())
+        allowed_keys = {"pt_portfolio", "pt_settings", "pt_llmlog", "pt_running"}
+        with _db_lock:
+            with get_db() as conn:
+                for key, value in body.items():
+                    if key not in allowed_keys:
+                        continue
+                    conn.execute(
+                        "INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?) "
+                        "ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value",
+                        (user["id"], key, json.dumps(value))
+                    )
+        self._json(200, {"status": "ok"})
+
     # ── Refresh endpoint ──────────────────────────────────────
 
     def _handle_refresh(self):
@@ -871,6 +906,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
         elif p == "/user/csv/sync-status"    and method == "GET":  self._handle_csv_sync_status()
         elif p == "/user/positions"          and method == "GET":  self._handle_positions_cache_get()
         elif p == "/user/positions/refresh"  and method == "POST": self._handle_positions_cache_refresh()
+        elif p == "/user/ai-trading"         and method == "GET":  self._handle_ai_trading_get()
+        elif p == "/user/ai-trading"         and method == "POST": self._handle_ai_trading_post()
         elif p == "/auth/totp/setup"     and method == "POST": self._handle_totp_setup()
         elif p == "/auth/totp/confirm"   and method == "POST": self._handle_totp_confirm()
         elif p == "/auth/totp/disable"   and method == "POST": self._handle_totp_disable()

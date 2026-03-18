@@ -1184,7 +1184,7 @@ function setupDashboardTab() {
       const accountContent    = document.getElementById("account-content");
       const geschContent      = document.getElementById("geschiedenis-content");
       const tradesContent     = document.getElementById("trades-content");
-      const paperContent      = document.getElementById("paper-trading-content");
+      const paperContent      = document.getElementById("ai-trading-content");
       mainContent.classList.add("hidden");
       dashContent.classList.add("hidden");
       if (accountContent) accountContent.classList.add("hidden");
@@ -1201,7 +1201,7 @@ function setupDashboardTab() {
       } else if (tab === "trades") {
         if (tradesContent) tradesContent.classList.remove("hidden");
         if (typeof initTradesTab === "function") initTradesTab();
-      } else if (tab === "paper-trading") {
+      } else if (tab === "ai-trading") {
         if (paperContent) paperContent.classList.remove("hidden");
         if (typeof ptInit === "function") ptInit();
       } else if (tab === "geschiedenis") {

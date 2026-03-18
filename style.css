@@ -1897,7 +1897,7 @@ tbody td {
 .trades-rep    { color: var(--text); font-size: 12px; }
 .trades-amount { color: var(--muted); font-size: 11px; }
 
-/* ── Paper Trading ──────────────────────────────────────────── */
+/* ── AI Trading ─────────────────────────────────────────────── */
 .pt-wrapper {
   padding: 20px 24px;
   max-width: 1600px;

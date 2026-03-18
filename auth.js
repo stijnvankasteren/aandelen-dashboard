@@ -134,12 +134,33 @@ const Auth = (() => {
     });
   }
 
+  // ── AI trading ophalen/opslaan ────────────────────────────
+
+  async function loadAiTrading() {
+    try {
+      const res = await fetch(`${API}/user/ai-trading`, { headers: _headers() });
+      if (!res.ok) return {};
+      return res.json();
+    } catch(e) { return {}; }
+  }
+
+  async function saveAiTrading(obj) {
+    try {
+      await fetch(`${API}/user/ai-trading`, {
+        method: "POST",
+        headers: _headers(),
+        body: JSON.stringify(obj),
+      });
+    } catch(e) { console.warn("[Auth] saveAiTrading fout:", e); }
+  }
+
   return {
     getToken, getUsername, getUserId, isLoggedIn,
     register, login, logout, verify,
     loadSettings, saveSettings,
     loadTransactions, saveTransactions,
     loadDividends, saveDividends,
+    loadAiTrading, saveAiTrading,
     saveSession: _saveSession,
   };
 })();
