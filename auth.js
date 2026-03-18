@@ -246,31 +246,56 @@ async function authDoLogin() {
   const password = document.getElementById("auth-login-pass").value;
   if (!username || !password) { authShowError("Vul alle velden in."); return; }
   const btn = document.querySelector("#auth-form-login .auth-btn");
-  btn.disabled = true; btn.textContent = "Bezig...";
-  try {
-    const res  = await fetch("/proxy/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Login mislukt.");
-    if (data.totp_required) {
-      // Sla credentials op voor de tweede stap
-      _pendingLoginUser = username;
-      _pendingLoginPass = password;
-      document.getElementById("auth-form-login").style.display = "none";
-      document.getElementById("auth-form-totp").style.display  = "";
-      document.getElementById("auth-totp-code").focus();
+  btn.disabled = true;
+
+  // Automatisch opnieuw proberen als de proxy nog opstart (max 15x, elke 2s)
+  const MAX_RETRIES = 15;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      btn.textContent = attempt === 0 ? "Bezig..." : `Server start op... (${attempt}/${MAX_RETRIES})`;
+      const res  = await fetch("/proxy/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        // Proxy nog niet klaar (nginx geeft HTML terug), wacht en probeer opnieuw
+        if (attempt < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+        throw new Error("Server is nog niet klaar. Probeer het over enkele seconden opnieuw.");
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Login mislukt.");
+      if (data.totp_required) {
+        // Sla credentials op voor de tweede stap
+        _pendingLoginUser = username;
+        _pendingLoginPass = password;
+        document.getElementById("auth-form-login").style.display = "none";
+        document.getElementById("auth-form-totp").style.display  = "";
+        document.getElementById("auth-totp-code").focus();
+        btn.disabled = false; btn.textContent = "Inloggen";
+        return;
+      }
+      Auth.saveSession(data);
+      await authOnSuccess();
+      btn.disabled = false; btn.textContent = "Inloggen";
+      return;
+    } catch (e) {
+      if (attempt < MAX_RETRIES && (e instanceof TypeError || e.message.includes("fetch"))) {
+        // Netwerk nog niet bereikbaar
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      authShowError(e.message);
+      btn.disabled = false; btn.textContent = "Inloggen";
       return;
     }
-    Auth.saveSession(data);
-    await authOnSuccess();
-  } catch (e) {
-    authShowError(e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = "Inloggen";
   }
+  authShowError("Server reageert niet na meerdere pogingen. Probeer de pagina te verversen.");
+  btn.disabled = false; btn.textContent = "Inloggen";
 }
 
 async function authDoTotp() {

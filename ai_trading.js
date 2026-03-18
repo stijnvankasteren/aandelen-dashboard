@@ -39,10 +39,19 @@ let ptState = {
 
 // ── Init ───────────────────────────────────────────────────────
 async function ptInit() {
+  // Voorkom dubbele initialisatie bij herhaald tab-bezoek
+  if (ptState._initialized) {
+    ptRenderAll();
+    ptBindSettings();
+    return;
+  }
+  ptState._initialized = true;
+
   await ptLoadFromStorage();
   ptRenderAll();
   ptBindSettings();
   ptStartPriceRefresh();
+
   // Auto-restart als het systeem actief was bij vorige sessie
   if (ptState._savedRunning && ptState.portfolio.startDate) {
     console.log('[PT] Auto-restart: systeem was actief, hervatten...');
@@ -51,8 +60,18 @@ async function ptInit() {
     document.getElementById('pt-stop-btn').classList.remove('hidden');
     document.getElementById('pt-engine-badge').textContent = 'ACTIEF';
     document.getElementById('pt-engine-badge').className   = 'pt-badge pt-badge-on';
-    ptSetStatus('Systeem hervat (was actief bij vorige sessie) — analyse wordt uitgevoerd...', 'info');
-    ptRunCycle();
+
+    // Alleen een nieuwe cycle starten als er vandaag nog geen is geweest
+    const today        = new Date().toISOString().slice(0, 10);
+    const lastSnapshot = ptState.portfolio.snapshots?.at(-1);
+    const ranToday     = lastSnapshot?.date === today;
+
+    if (ranToday) {
+      ptSetStatus(`Systeem actief — laatste analyse was vandaag (${today}). Volgende check morgen.`, 'ok');
+    } else {
+      ptSetStatus('Systeem hervat — analyse wordt uitgevoerd...', 'info');
+      ptRunCycle();
+    }
     ptState.intervalId = setInterval(ptRunCycle, 24 * 60 * 60 * 1000);
   }
 }
@@ -169,7 +188,7 @@ async function ptStop() {
 function ptRunNow() {
   ptReadSettings();
   ptSetStatus('Handmatige analyse gestart...', 'info');
-  ptRunCycle();
+  ptRunCycle(true);
 }
 
 async function ptReset() {
@@ -190,7 +209,24 @@ async function ptReset() {
 }
 
 // ── Core Cycle ─────────────────────────────────────────────────
-async function ptRunCycle() {
+async function ptRunCycle(force = false) {
+  // Voorkom dat de cycle twee keer tegelijk draait
+  if (ptState._cycleRunning) {
+    console.log('[PT] Cycle wordt al uitgevoerd, overgeslagen.');
+    return;
+  }
+
+  // Sla over als er vandaag al een cycle is geweest (tenzij handmatig geforceerd)
+  if (!force) {
+    const today = new Date().toISOString().slice(0, 10);
+    const lastSnapshot = ptState.portfolio.snapshots?.at(-1);
+    if (lastSnapshot?.date === today) {
+      ptSetStatus(`Analyse al uitgevoerd vandaag (${today}). Volgende dagelijkse check over 24 uur.`, 'ok');
+      return;
+    }
+  }
+
+  ptState._cycleRunning = true;
   ptSetStatus('Marktdata analyseren...', 'info');
 
   try {
@@ -206,8 +242,6 @@ async function ptRunCycle() {
       ptSetStatus('Geen rankingdata beschikbaar. Ververs de data eerst.', 'warn');
       return;
     }
-
-    const now = new Date().toISOString();
 
     // 1. Controleer bestaande posities op stop-loss / take-profit / score verslechtering
     await ptCheckExitSignals(rankings, insiderData, congressData, newsData);
@@ -225,6 +259,8 @@ async function ptRunCycle() {
   } catch (err) {
     ptSetStatus(`Fout tijdens analyse: ${err.message}`, 'error');
     console.error('[PT] cycle error', err);
+  } finally {
+    ptState._cycleRunning = false;
   }
 }
 
