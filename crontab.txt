@@ -1,9 +1,9 @@
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 
-0 7   * * * cd /app && /usr/local/bin/python3 update_sp500.py >> /app/data/sp500_cron.log 2>&1
-0 8,12,17 * * * /app/run_csv_daily.sh >> /app/data/t212_cron.log 2>&1
-*/15 * * * *    /app/run_positions_refresh.sh >> /app/data/t212_cron.log 2>&1
-0 8,12,17 * * * cd /app && /usr/local/bin/python3 fetch_data.py >> /app/data/fetch_cron.log 2>&1
-*/15 * * * *    cd /app && /usr/local/bin/python3 fetch_trades.py >> /app/data/trades_cron.log 2>&1
-@reboot         cd /app && /usr/local/bin/python3 backfill_congress.py >> /app/data/backfill_cron.log 2>&1
+0 7   * * * echo "[$(date '+%Y-%m-%d %H:%M')] update_sp500.py gestart" > /proc/1/fd/1 2>&1 && cd /app && /usr/local/bin/python3 update_sp500.py >> /app/data/sp500_cron.log 2>&1 && echo "[$(date '+%Y-%m-%d %H:%M')] update_sp500.py klaar" > /proc/1/fd/1 2>&1
+0 8,12,17 * * * echo "[$(date '+%Y-%m-%d %H:%M')] run_csv_daily.sh gestart" > /proc/1/fd/1 2>&1 && /app/run_csv_daily.sh >> /app/data/t212_cron.log 2>&1 && echo "[$(date '+%Y-%m-%d %H:%M')] run_csv_daily.sh klaar" > /proc/1/fd/1 2>&1
+*/15 * * * *    echo "[$(date '+%Y-%m-%d %H:%M')] run_positions_refresh.sh gestart" > /proc/1/fd/1 2>&1 && /app/run_positions_refresh.sh >> /app/data/t212_cron.log 2>&1 && echo "[$(date '+%Y-%m-%d %H:%M')] run_positions_refresh.sh klaar" > /proc/1/fd/1 2>&1
+0 8,12,17 * * * echo "[$(date '+%Y-%m-%d %H:%M')] fetch_data.py gestart" > /proc/1/fd/1 2>&1 && cd /app && /usr/local/bin/python3 fetch_data.py >> /app/data/fetch_cron.log 2>&1 && echo "[$(date '+%Y-%m-%d %H:%M')] fetch_data.py klaar" > /proc/1/fd/1 2>&1
+*/15 * * * *    echo "[$(date '+%Y-%m-%d %H:%M')] fetch_trades.py gestart" > /proc/1/fd/1 2>&1 && cd /app && /usr/local/bin/python3 fetch_trades.py >> /app/data/trades_cron.log 2>&1 && echo "[$(date '+%Y-%m-%d %H:%M')] fetch_trades.py klaar" > /proc/1/fd/1 2>&1
+@reboot         echo "[$(date '+%Y-%m-%d %H:%M')] backfill_congress.py gestart" > /proc/1/fd/1 2>&1 && cd /app && /usr/local/bin/python3 backfill_congress.py >> /app/data/backfill_cron.log 2>&1 && echo "[$(date '+%Y-%m-%d %H:%M')] backfill_congress.py klaar" > /proc/1/fd/1 2>&1
