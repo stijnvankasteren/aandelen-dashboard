@@ -819,9 +819,11 @@ ${recentNews}`;
     const convMatch    = content.match(/CONVICTION SCORE:\s*(\d+)/i);
 
     const verdictStr = verdictMatch ? verdictMatch[1].toUpperCase() : 'HOLD';
-    const buy        = verdictStr === 'BUY';
     const reason     = reasonMatch ? reasonMatch[1].trim() : content.slice(0, 200);
     const conviction = convMatch   ? parseInt(convMatch[1]) : null;
+
+    // BUY als verdict BUY is, of HOLD met hoge conviction (≥ 70)
+    const buy = verdictStr === 'BUY' || (verdictStr === 'HOLD' && conviction !== null && conviction >= 70);
 
     // Parse structured LOG block
     const logBlock = ptParseLogBlock(content);
