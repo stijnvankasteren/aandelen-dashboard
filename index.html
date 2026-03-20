@@ -791,11 +791,8 @@
 
   <script>
     const _v = Date.now();
-    ["trading212.js","degiro.js","db.js","auth.js","app.js","dashboard.js","account.js","trades.js","ai_trading.js"].forEach(s => {
-      const el = document.createElement("script");
-      el.src = s + "?v=" + _v;
-      document.currentScript.parentNode.appendChild(el);
-    });
+    ["trading212.js","degiro.js","db.js","auth.js","app.js","dashboard.js","account.js","trades.js","ai_trading.js"]
+      .forEach(s => document.write(`<script src="${s}?v=${_v}"><\/script>`));
   </script>
 </body>
 </html>
