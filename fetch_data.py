@@ -1044,6 +1044,8 @@ def fetch_congress_trades(tickers):
             continue
         if tx_date_iso < cutoff:
             continue
+        if tx_date_iso > date.today().isoformat():
+            continue
 
         tx_type_raw = (trade.get("transaction_type") or "").lower()
         if "purchase" in tx_type_raw or "buy" in tx_type_raw:
