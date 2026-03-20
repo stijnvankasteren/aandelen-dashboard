@@ -865,6 +865,24 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
     # ── Refresh endpoint ──────────────────────────────────────
 
+    def _handle_data_file(self, path):
+        # Serveer JSON bestanden uit /app/data/ — bijv. /data/scores.json
+        filename = os.path.basename(path)
+        if not filename.endswith(".json"):
+            self.send_response(404); self.end_headers(); return
+        filepath = os.path.join("/app/data", filename)
+        if not os.path.isfile(filepath):
+            self.send_response(404); self.end_headers(); return
+        with open(filepath, "rb") as f:
+            data = f.read()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self._cors_headers()
+        self.end_headers()
+        self.wfile.write(data)
+
     def _handle_refresh(self):
         global _refresh_running
         with _refresh_lock:
@@ -915,6 +933,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         elif p == "/auth/request-reset"  and method == "POST": self._handle_request_reset()
         elif p == "/auth/reset-password" and method == "POST": self._handle_reset_password()
         elif p == "/refresh":             self._handle_refresh()
+        elif p.startswith("/data/") and method == "GET": self._handle_data_file(p)
         elif self.path.startswith("/degiro"):    self._handle_degiro(method, self.path[7:])
         elif self.path.startswith("/s3download"): self._handle_s3download()
         else:
