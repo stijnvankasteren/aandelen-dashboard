@@ -67,6 +67,11 @@ function _buildTradesRows() {
     const name  = rankEntry?.name  || ticker;
     const index = rankEntry?.index || "—";
 
+    const recent = data.recent || [];
+    const latest_date = recent.length > 0
+      ? recent.map(t => t.date || "").sort().at(-1)
+      : "";
+
     rows.push({
       ticker,
       name,
@@ -74,7 +79,8 @@ function _buildTradesRows() {
       buy_count:  data.buy_count  || 0,
       sell_count: data.sell_count || 0,
       score:      data.score      || 50,
-      recent:     data.recent     || [],
+      recent,
+      latest_date,
     });
   }
   return rows;

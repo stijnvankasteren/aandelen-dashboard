@@ -530,7 +530,7 @@
               <th class="trades-sortable" data-col="buy_count">Buys</th>
               <th class="trades-sortable" data-col="sell_count">Sells</th>
               <th class="trades-sortable" data-col="score">Score</th>
-              <th>Recente filings</th>
+              <th class="trades-sortable" data-col="latest_date">Recente filings</th>
             </tr>
           </thead>
           <tbody id="trades-insider-tbody"></tbody>
@@ -548,7 +548,7 @@
               <th class="trades-sortable" data-col="buy_count">Buys</th>
               <th class="trades-sortable" data-col="sell_count">Sells</th>
               <th class="trades-sortable" data-col="score">Score</th>
-              <th>Recente trades</th>
+              <th class="trades-sortable" data-col="latest_date">Recente trades</th>
             </tr>
           </thead>
           <tbody id="trades-congress-tbody"></tbody>
@@ -789,14 +789,13 @@
 
 </div><!-- /#app-root -->
 
-  <script src="trading212.js"></script>
-  <script src="degiro.js"></script>
-  <script src="db.js"></script>
-  <script src="auth.js"></script>
-  <script src="app.js"></script>
-  <script src="dashboard.js"></script>
-  <script src="account.js"></script>
-  <script src="trades.js"></script>
-  <script src="ai_trading.js"></script>
+  <script>
+    const _v = Date.now();
+    ["trading212.js","degiro.js","db.js","auth.js","app.js","dashboard.js","account.js","trades.js","ai_trading.js"].forEach(s => {
+      const el = document.createElement("script");
+      el.src = s + "?v=" + _v;
+      document.currentScript.parentNode.appendChild(el);
+    });
+  </script>
 </body>
 </html>
